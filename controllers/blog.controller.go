@@ -156,6 +156,13 @@ func AddFav(c *fiber.Ctx) error {
 		})
 	}
 
+	var existingFavorite models.Favorite
+	if err := initializers.DB.Where("user_id = ? AND blog_id = ?", user.ID, favorite.BlogID).First(&existingFavorite).Error; err == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Favorite already exists",
+		})
+	}
+
 	favorite.UserID = user.ID
 
 	if result := initializers.DB.Create(&favorite); result.Error != nil {
@@ -169,15 +176,12 @@ func AddFav(c *fiber.Ctx) error {
 
 func GetFavorites(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.UserResponse)
-
 	var favorites []models.Favorite
-
 	if err := initializers.DB.Preload("User").Preload("Blog").Where("user_id = ?", user.ID).Find(&favorites).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Could not retrieve favorites",
 		})
 	}
-
 	return c.Status(fiber.StatusOK).JSON(favorites)
 }
 
