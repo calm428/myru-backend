@@ -75,7 +75,7 @@ func TryActivated(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, afterSpace string
 		return
 	}
 
-	fileURL := "https://images.myru.online/default.jpg" // Set a default profile photo URL
+	fileURL := "https://img.myru.online/default.jpg" // Set a default profile photo URL
 	config := tgbotapi.UserProfilePhotosConfig{
 		UserID: msg.From.ID,
 		Limit:  1,
@@ -174,7 +174,7 @@ func TryActivated(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, afterSpace string
 		fileName := filepath.Base(fileURL)
 		if msg.From != nil && msg.From.UserName != "" {
 			// If the field exists, assign the value
-			user.Name = msg.From.UserName
+			user.TelegramName = &msg.From.UserName
 			user.Tid = msg.From.ID
 			user.TelegramActivated = true
 			// user.Photo = fileURL
@@ -199,7 +199,6 @@ func TryActivated(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, afterSpace string
 		}
 
 	}
-
 }
 
 func MakeCodes(bot *tgbotapi.BotAPI, msg *tgbotapi.Message, afterSpace string) {
