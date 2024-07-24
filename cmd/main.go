@@ -80,9 +80,7 @@ type Peer struct {
 }
 
 var peers = make(map[string]*Peer)
-var peersLock sync.RWMutex
-
-var ClientsLock sync.RWMutex
+var Lock sync.RWMutex
 
 func init() {
 	config, err := initializers.LoadConfig(".")
@@ -231,8 +229,6 @@ func main() {
 		AllowMethods:     "GET, POST, PATCH, DELETE",
 		AllowCredentials: true,
 	}))
-
-	var ClientsLock sync.Mutex
 
 	// var languageChan = make(chan string)
 
@@ -469,9 +465,9 @@ func main() {
 		defer redisClient.Close()
 
 		// Add client to clients map
-		ClientsLock.Lock()
+		Lock.Lock()
 		utils.ClientsInstance[idStr] = c
-		ClientsLock.Unlock()
+		Lock.Unlock()
 
 		//CHECK USER LOGIN OR NOT
 		authToken := c.Cookies("access_token")
@@ -519,15 +515,15 @@ func main() {
 
 		}
 
-		defer delete(utils.ClientsInstance, idStr)
 		startTime := time.Now()
 
 		// Setup dials time in min
 
 		defer func() {
-			peersLock.Lock()
+			Lock.Lock()
 			delete(peers, idStr)
-			peersLock.Unlock()
+			delete(utils.ClientsInstance, idStr)
+			Lock.Unlock()
 			bufferPool.Free()
 			byteQueue.Clear()
 
