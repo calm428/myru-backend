@@ -63,9 +63,9 @@ func GetCities(c *fiber.Ctx) error {
 	db := initializers.DB.
 		Joins("JOIN city_translations ON cities.id = city_translations.city_id").
 		Preload("Translations").
-		Select("DISTINCT cities.id, cities.country_code, cities.hex, cities.updated_at, cities.deleted_at").
+		Select("DISTINCT cities.id, cities.country_code, cities.hex, cities.updated_at, cities.deleted_at, CASE WHEN cities.id IN (17, 104) THEN 0 ELSE 1 END AS custom_order").
 		Offset(skipNumber).Limit(limitNumber).
-		Order("CASE WHEN cities.id IN (17, 104) THEN 0 ELSE 1 END, cities.id").
+		Order("custom_order, cities.id").
 		Find(&cities)
 
 	if db.Error != nil {
