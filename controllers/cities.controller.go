@@ -65,7 +65,7 @@ func GetCities(c *fiber.Ctx) error {
 		Preload("Translations").
 		Select("DISTINCT cities.id, cities.country_code, cities.hex, cities.updated_at, cities.deleted_at").
 		Offset(skipNumber).Limit(limitNumber).
-		Order("cities.id").
+		Order("CASE WHEN cities.id IN (17, 104) THEN 0 ELSE 1 END, cities.id").
 		Find(&cities)
 
 	if db.Error != nil {
