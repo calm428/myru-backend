@@ -62,25 +62,26 @@ func GetDurationComponents(duration time.Duration) TimeArray {
 
 var (
 	// Map to keep track of connected clients
-	clients    = make(map[string]*websocket.Conn)
-	w          = sync.WaitGroup{}
+	// w          = sync.WaitGroup{}
 	bufferPool = network.NewBufferPool("TestPool", 10, 1024)
 	byteQueue  = network.NewByteQueue()
 )
 
 // Функция для поиска клиента по его идентификатору
-func findClientByID(id string) (*websocket.Conn, bool) {
-	client, ok := clients[id]
-	return client, ok
-}
+// func findClientByID(id string) (*websocket.Conn, bool) {
+// 	client, ok := clients[id]
+// 	return client, ok
+// }
 
 type Peer struct {
+	Clients        *utils.Clients
 	Conn           *websocket.Conn
 	PeerConnection *webrtc.PeerConnection
 }
 
 var peers = make(map[string]*Peer)
 var peersLock sync.RWMutex
+
 var ClientsLock sync.RWMutex
 
 func init() {
@@ -232,9 +233,8 @@ func main() {
 	}))
 
 	var ClientsLock sync.Mutex
-	var Clients = make(map[string]*websocket.Conn)
 
-	var languageChan = make(chan string)
+	// var languageChan = make(chan string)
 
 	// bufferPool := network.NewBufferPool("WebSocketBufferPool", 10, 1024)
 
@@ -246,170 +246,170 @@ func main() {
 		return fiber.ErrUpgradeRequired
 	})
 
-	app.Get("/stream/live", websocket.New(func(c *websocket.Conn) {
-		idStr := c.Query("session")
-		language := c.Query("language")
+	// app.Get("/stream/live", websocket.New(func(c *websocket.Conn) {
+	// 	idStr := c.Query("session")
+	// 	language := c.Query("language")
 
-		if language == "" {
-			language = "en"
-		}
+	// 	if language == "" {
+	// 		language = "en"
+	// 	}
 
-		ClientsLock.Lock()
-		Clients[idStr] = c
-		ClientsLock.Unlock()
+	// 	ClientsLock.Lock()
+	// 	Clients[idStr] = c
+	// 	ClientsLock.Unlock()
 
-		defer func() {
-			ClientsLock.Lock()
-			delete(Clients, idStr)
-			ClientsLock.Unlock()
-			c.Close()
-		}()
+	// 	defer func() {
+	// 		ClientsLock.Lock()
+	// 		delete(Clients, idStr)
+	// 		ClientsLock.Unlock()
+	// 		c.Close()
+	// 	}()
 
-		go func() {
-			for {
-				languageChan <- language
-				time.Sleep(2 * time.Second)
-			}
-		}()
+	// 	go func() {
+	// 		for {
+	// 			languageChan <- language
+	// 			time.Sleep(2 * time.Second)
+	// 		}
+	// 	}()
 
-		type messageSocket struct {
-			MessageType string                   `json:"messageType"`
-			Data        []map[string]interface{} `json:"data"`
-		}
+	// 	type messageSocket struct {
+	// 		MessageType string                   `json:"messageType"`
+	// 		Data        []map[string]interface{} `json:"data"`
+	// 	}
 
-		for {
-			// buffer := bufferPool.AcquireBuffer() // Получаем буфер из пула
+	// 	for {
+	// 		// buffer := bufferPool.AcquireBuffer() // Получаем буфер из пула
 
-			_, message, err := c.ReadMessage()
-			if err != nil {
-				fmt.Println("error reading message from client:", err)
-				break
-			}
+	// 		_, message, err := c.ReadMessage()
+	// 		if err != nil {
+	// 			fmt.Println("error reading message from client:", err)
+	// 			break
+	// 		}
 
-			var messageData messageSocket
-			err = json.Unmarshal(message, &messageData)
-			if err != nil {
-				fmt.Println("error parsing message:", err)
-				continue
-			}
+	// 		var messageData messageSocket
+	// 		err = json.Unmarshal(message, &messageData)
+	// 		if err != nil {
+	// 			fmt.Println("error parsing message:", err)
+	// 			continue
+	// 		}
 
-			if messageData.MessageType == "getADS" {
-				var blogs []models.Blog
-				err := initializers.DB.
-					Preload("Photos").
-					Preload("City.Translations", "language = ?", language).
-					Preload("Catygory.Translations", "language = ?", language).
-					Preload("User").
-					Preload("Hashtags").
-					Order("RANDOM()").
-					Limit(2).
-					Find(&blogs).
-					Error
-				if err != nil {
-					fmt.Println("error fetching random blogs:", err)
-					// bufferPool.ReleaseBuffer(buffer)
-					return // Exit or handle the error appropriately
-				}
+	// 		if messageData.MessageType == "getADS" {
+	// 			var blogs []models.Blog
+	// 			err := initializers.DB.
+	// 				Preload("Photos").
+	// 				Preload("City.Translations", "language = ?", language).
+	// 				Preload("Catygory.Translations", "language = ?", language).
+	// 				Preload("User").
+	// 				Preload("Hashtags").
+	// 				Order("RANDOM()").
+	// 				Limit(2).
+	// 				Find(&blogs).
+	// 				Error
+	// 			if err != nil {
+	// 				fmt.Println("error fetching random blogs:", err)
+	// 				// bufferPool.ReleaseBuffer(buffer)
+	// 				return // Exit or handle the error appropriately
+	// 			}
 
-				for _, blog := range blogs {
-					blogJSON, err := json.Marshal(blog)
-					if err != nil {
-						fmt.Println("error encoding blog to JSON:", err)
-						continue
-					}
+	// 			for _, blog := range blogs {
+	// 				blogJSON, err := json.Marshal(blog)
+	// 				if err != nil {
+	// 					fmt.Println("error encoding blog to JSON:", err)
+	// 					continue
+	// 				}
 
-					buffer := bufferPool.AcquireBuffer()
-					copy(buffer, blogJSON)
+	// 				buffer := bufferPool.AcquireBuffer()
+	// 				copy(buffer, blogJSON)
 
-					byteQueue.Enqueue(buffer, 0, len(buffer))
-					bufferPool.ReleaseBuffer(buffer)
+	// 				byteQueue.Enqueue(buffer, 0, len(buffer))
+	// 				bufferPool.ReleaseBuffer(buffer)
 
-					// fmt.Println(buffer)
-					// Send the JSON data to the client
-					err = c.WriteMessage(websocket.BinaryMessage, buffer)
-					if err != nil {
-						fmt.Println("error sending blog JSON to client:", err)
-						continue
-					}
-					bufferPool.ReleaseBuffer(buffer)
+	// 				// fmt.Println(buffer)
+	// 				// Send the JSON data to the client
+	// 				err = c.WriteMessage(websocket.BinaryMessage, buffer)
+	// 				if err != nil {
+	// 					fmt.Println("error sending blog JSON to client:", err)
+	// 					continue
+	// 				}
+	// 				bufferPool.ReleaseBuffer(buffer)
 
-				}
-			}
+	// 			}
+	// 		}
 
-			for byteQueue.Size() > 0 {
-				buffer := make([]byte, 1024)
+	// 		for byteQueue.Size() > 0 {
+	// 			buffer := make([]byte, 1024)
 
-				n, err := byteQueue.Dequeue(buffer, 0, len(buffer))
-				if err != nil {
-					fmt.Println("error dequeuing bytes:", err)
-					continue
-				}
+	// 			n, err := byteQueue.Dequeue(buffer, 0, len(buffer))
+	// 			if err != nil {
+	// 				fmt.Println("error dequeuing bytes:", err)
+	// 				continue
+	// 			}
 
-				err = c.WriteMessage(websocket.BinaryMessage, buffer[:n])
-				if err != nil {
-					fmt.Println("error sending bytes to client:", err)
-					continue
-				}
-			}
+	// 			err = c.WriteMessage(websocket.BinaryMessage, buffer[:n])
+	// 			if err != nil {
+	// 				fmt.Println("error sending bytes to client:", err)
+	// 				continue
+	// 			}
+	// 		}
 
-		}
-	}))
+	// 	}
+	// }))
 
-	go func() {
-		defer func() {
-			for _, conn := range Clients {
-				conn.Close()
-			}
-		}()
+	// go func() {
+	// 	defer func() {
+	// 		for _, conn := range utils.ClientsInstance {
+	// 			conn.Close()
+	// 		}
+	// 	}()
 
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
+	// 	ticker := time.NewTicker(2 * time.Second)
+	// 	defer ticker.Stop()
 
-		var lang string
-		for {
-			select {
-			case <-ticker.C:
-				ClientsLock.Lock()
-				hasActiveClients := len(Clients) > 0
-				ClientsLock.Unlock()
+	// 	var lang string
+	// 	for {
+	// 		select {
+	// 		case <-ticker.C:
+	// 			ClientsLock.Lock()
+	// 			hasActiveClients := len(utils.ClientsInstance) > 0
+	// 			ClientsLock.Unlock()
 
-				if hasActiveClients {
-					var blog models.Blog
-					err := initializers.DB.
-						Preload("Photos").
-						Preload("City.Translations", "language = ?", lang).
-						Preload("Catygory.Translations", "language = ?", lang).
-						Preload("User").
-						Preload("Hashtags").
-						Order("RANDOM()").
-						Limit(1).
-						First(&blog).
-						Error
-					if err != nil {
-						fmt.Println("error fetching random blog:", err)
-						continue
-					}
+	// 			if hasActiveClients {
+	// 				var blog models.Blog
+	// 				err := initializers.DB.
+	// 					Preload("Photos").
+	// 					Preload("City.Translations", "language = ?", lang).
+	// 					Preload("Catygory.Translations", "language = ?", lang).
+	// 					Preload("User").
+	// 					Preload("Hashtags").
+	// 					Order("RANDOM()").
+	// 					Limit(1).
+	// 					First(&blog).
+	// 					Error
+	// 				if err != nil {
+	// 					fmt.Println("error fetching random blog:", err)
+	// 					continue
+	// 				}
 
-					blogJSON, err := json.Marshal(blog)
-					if err != nil {
-						fmt.Println("error encoding blog to JSON:", err)
-						continue
-					}
+	// 				blogJSON, err := json.Marshal(blog)
+	// 				if err != nil {
+	// 					fmt.Println("error encoding blog to JSON:", err)
+	// 					continue
+	// 				}
 
-					ClientsLock.Lock()
-					for _, conn := range Clients {
-						err := conn.WriteMessage(websocket.TextMessage, blogJSON)
-						if err != nil {
-							fmt.Println("error writing message to client:", err)
-						}
-					}
-					ClientsLock.Unlock()
-				}
-			case newLang := <-languageChan:
-				lang = newLang
-			}
-		}
-	}()
+	// 				ClientsLock.Lock()
+	// 				for _, conn := range utils.ClientsInstance {
+	// 					err := conn.WriteMessage(websocket.TextMessage, blogJSON)
+	// 					if err != nil {
+	// 						fmt.Println("error writing message to client:", err)
+	// 					}
+	// 				}
+	// 				ClientsLock.Unlock()
+	// 			}
+	// 		case newLang := <-languageChan:
+	// 			lang = newLang
+	// 		}
+	// 	}
+	// }()
 
 	app.Use("/socket.io", func(c *fiber.Ctx) error {
 		// IsWebSocketUpgrade returns true if the client
@@ -429,7 +429,7 @@ func main() {
 		}
 
 		// Timeout client 5min.
-		c.SetReadDeadline(time.Now().Add(5 * time.Hour))
+		// c.SetReadDeadline(time.Now().Add(5 * time.Hour))
 
 		id := uuid.NewV4()
 		idStr := base64.URLEncoding.EncodeToString(id[:])
@@ -470,7 +470,7 @@ func main() {
 
 		// Add client to clients map
 		ClientsLock.Lock()
-		utils.Clients[idStr] = c
+		utils.ClientsInstance[idStr] = c
 		ClientsLock.Unlock()
 
 		//CHECK USER LOGIN OR NOT
@@ -519,7 +519,7 @@ func main() {
 
 		}
 
-		defer delete(utils.Clients, idStr)
+		defer delete(utils.ClientsInstance, idStr)
 		startTime := time.Now()
 
 		// Setup dials time in min
@@ -538,12 +538,9 @@ func main() {
 			log.Printf("Client %s disconnected after %s", idStr, elapsedTime)
 
 			///var clientsMap map[string]*websocket.Conn
-			clients = utils.Clients
-
-			fmt.Println(clients)
 
 			// Remove client from clients map
-			delete(clients, idStr)
+			delete(utils.ClientsInstance, idStr)
 
 			fmt.Println("client deleted from Redis:", idStr)
 
@@ -741,7 +738,7 @@ func main() {
 
 		// Set the clients JSON string as the value in a Redis hash
 		redisKey := "connected_clients"
-		clientInfo, err := json.Marshal(utils.Clients)
+		clientInfo, err := json.Marshal(utils.ClientsInstance)
 		err = redisClient.HSet(ctx, redisKey, idStr, clientInfo).Err()
 		if err != nil {
 			fmt.Println("error setting client info in Redis:", err)
@@ -845,223 +842,223 @@ func main() {
 					}
 				}
 			}
-			if Message.MessageType == "getMySessionId" {
-				fmt.Println("WebSocket client connected with ID:", idStr)
-				w.Add(1)
+			// if Message.MessageType == "getMySessionId" {
+			// 	fmt.Println("WebSocket client connected with ID:", idStr)
+			// 	w.Add(1)
 
-				type SessionIDMessage struct {
-					SessionID string `json:"session"`
-				}
+			// 	type SessionIDMessage struct {
+			// 		SessionID string `json:"session"`
+			// 	}
 
-				sessionIDMessage := SessionIDMessage{
-					SessionID: idStr,
-				}
+			// 	sessionIDMessage := SessionIDMessage{
+			// 		SessionID: idStr,
+			// 	}
 
-				jsonData, err := json.Marshal(sessionIDMessage)
-				if err != nil {
-					fmt.Println("Ошибка при преобразовании в JSON:", err)
-					return
-				}
+			// 	jsonData, err := json.Marshal(sessionIDMessage)
+			// 	if err != nil {
+			// 		fmt.Println("Ошибка при преобразовании в JSON:", err)
+			// 		return
+			// 	}
 
-				go func() {
+			// 	go func() {
 
-					err := c.WriteMessage(websocket.TextMessage, jsonData)
+			// 		err := c.WriteMessage(websocket.TextMessage, jsonData)
 
-					// err := utils.UserActivity("sessionId", idStr)
-					if err != nil {
-						fmt.Println("error writing message to client", idStr, ":", err)
-						return
-					}
-					// w.Wait()
-				}()
-			}
+			// 		// err := utils.UserActivity("sessionId", idStr)
+			// 		if err != nil {
+			// 			fmt.Println("error writing message to client", idStr, ":", err)
+			// 			return
+			// 		}
+			// 		// w.Wait()
+			// 	}()
+			// }
 
-			if Message.MessageType == "webcall" {
+			// if Message.MessageType == "webcall" {
 
-				var Message messageSocket
-				if err := json.Unmarshal(message, &Message); err != nil {
-					fmt.Println("error unmarshalling JSON:", err)
-					continue
-				}
+			// 	var Message messageSocket
+			// 	if err := json.Unmarshal(message, &Message); err != nil {
+			// 		fmt.Println("error unmarshalling JSON:", err)
+			// 		continue
+			// 	}
 
-				for _, dataMap := range Message.Data {
-					caller, callerExists := dataMap["caller"].(string)
-					if callerExists {
-						fmt.Println("Caller:", caller)
-					}
+			// 	for _, dataMap := range Message.Data {
+			// 		caller, callerExists := dataMap["caller"].(string)
+			// 		if callerExists {
+			// 			fmt.Println("Caller:", caller)
+			// 		}
 
-					uuid, uuidExists := dataMap["uuid"].(string)
-					if uuidExists {
-						fmt.Println("Handle:", uuid)
-					}
+			// 		uuid, uuidExists := dataMap["uuid"].(string)
+			// 		if uuidExists {
+			// 			fmt.Println("Handle:", uuid)
+			// 		}
 
-					handle, handleExists := dataMap["handle"].(string)
-					if handleExists {
-						fmt.Println("Handle:", handle)
-					}
+			// 		handle, handleExists := dataMap["handle"].(string)
+			// 		if handleExists {
+			// 			fmt.Println("Handle:", handle)
+			// 		}
 
-					session, sessionExists := dataMap["session"].(string)
-					if sessionExists {
-						fmt.Println("session:", session)
-					}
+			// 		session, sessionExists := dataMap["session"].(string)
+			// 		if sessionExists {
+			// 			fmt.Println("session:", session)
+			// 		}
 
-					sdpArray, sdpExists := dataMap["sdp"].([]interface{})
-					if sdpExists {
-						for _, sdpItem := range sdpArray {
-							sdpMap, ok := sdpItem.(map[string]interface{})
-							if !ok {
-								fmt.Println("SDP item is not a map[string]interface{}")
-								continue
-							}
+			// 		sdpArray, sdpExists := dataMap["sdp"].([]interface{})
+			// 		if sdpExists {
+			// 			for _, sdpItem := range sdpArray {
+			// 				sdpMap, ok := sdpItem.(map[string]interface{})
+			// 				if !ok {
+			// 					fmt.Println("SDP item is not a map[string]interface{}")
+			// 					continue
+			// 				}
 
-							sdpType, typeExists := sdpMap["type"].(string)
-							if typeExists {
-								fmt.Println("SDP Type:", sdpType)
-							}
+			// 				sdpType, typeExists := sdpMap["type"].(string)
+			// 				if typeExists {
+			// 					fmt.Println("SDP Type:", sdpType)
+			// 				}
 
-							sdpContent, sdpExists := sdpMap["sdp"].(string)
-							if sdpExists {
-								fmt.Println("SDP Content:", sdpContent)
-							}
-						}
-					}
+			// 				sdpContent, sdpExists := sdpMap["sdp"].(string)
+			// 				if sdpExists {
+			// 					fmt.Println("SDP Content:", sdpContent)
+			// 				}
+			// 			}
+			// 		}
 
-					// id := session
-					// targetClientConn, ok := findClientByID(id)
-					// if !ok {
-					// 	fmt.Printf("Клиент с идентификатором %s не найден\n", id)
-					// 	return
-					// }
+			// 		// id := session
+			// 		// targetClientConn, ok := findClientByID(id)
+			// 		// if !ok {
+			// 		// 	fmt.Printf("Клиент с идентификатором %s не найден\n", id)
+			// 		// 	return
+			// 		// }
 
-					// dataForUser := payloadData{
-					// 	Command: "endc",
-					// }
+			// 		// dataForUser := payloadData{
+			// 		// 	Command: "endc",
+			// 		// }
 
-				}
-			}
+			// 	}
+			// }
 
-			if Message.MessageType == "updateProfile" {
-				type Message struct {
-					MessageType string `json:"MessageType"`
-					Data        []struct {
-						UserID string `json:"id"`
-					} `json:"data"`
-				}
-				var data Message
-				if err := json.Unmarshal([]byte(message), &data); err != nil {
-					fmt.Println("Ошибка при разборе JSON:", err)
-					return
-				}
+			// if Message.MessageType == "updateProfile" {
+			// 	type Message struct {
+			// 		MessageType string `json:"MessageType"`
+			// 		Data        []struct {
+			// 			UserID string `json:"id"`
+			// 		} `json:"data"`
+			// 	}
+			// 	var data Message
+			// 	if err := json.Unmarshal([]byte(message), &data); err != nil {
+			// 		fmt.Println("Ошибка при разборе JSON:", err)
+			// 		return
+			// 	}
 
-				fmt.Println("user online again:", data)
+			// 	fmt.Println("user online again:", data)
 
-			}
+			// }
 
-			if Message.MessageType == "reject" {
-				type RejectMessage struct {
-					Command string `json:"command"`
-				}
+			// if Message.MessageType == "reject" {
+			// 	type RejectMessage struct {
+			// 		Command string `json:"command"`
+			// 	}
 
-				type YourMessageType struct {
-					MessageType string `json:"MessageType"`
-					Data        []struct {
-						ID string `json:"id"`
-					} `json:"data"`
-				}
+			// 	type YourMessageType struct {
+			// 		MessageType string `json:"MessageType"`
+			// 		Data        []struct {
+			// 			ID string `json:"id"`
+			// 		} `json:"data"`
+			// 	}
 
-				var data YourMessageType
+			// 	var data YourMessageType
 
-				if err := json.Unmarshal([]byte(message), &data); err != nil {
-					fmt.Println("Ошибка при разборе JSON:", err)
-					return
-				}
+			// 	if err := json.Unmarshal([]byte(message), &data); err != nil {
+			// 		fmt.Println("Ошибка при разборе JSON:", err)
+			// 		return
+			// 	}
 
-				for _, data := range data.Data {
-					id := data.ID
+			// 	for _, data := range data.Data {
+			// 		id := data.ID
 
-					targetClientConn, ok := findClientByID(id)
-					if !ok {
-						fmt.Printf("Клиент с идентификатором %s не найден\n", id)
-						return
-					}
+			// 		targetClientConn, ok := findClientByID(id)
+			// 		if !ok {
+			// 			fmt.Printf("Клиент с идентификатором %s не найден\n", id)
+			// 			return
+			// 		}
 
-					rejectMessage := RejectMessage{
-						Command: "endc",
-					}
+			// 		rejectMessage := RejectMessage{
+			// 			Command: "endc",
+			// 		}
 
-					jsonData, err := json.Marshal(rejectMessage)
-					if err != nil {
-						fmt.Println("Ошибка при преобразовании в JSON:", err)
-						return
-					}
+			// 		jsonData, err := json.Marshal(rejectMessage)
+			// 		if err != nil {
+			// 			fmt.Println("Ошибка при преобразовании в JSON:", err)
+			// 			return
+			// 		}
 
-					err = targetClientConn.WriteMessage(websocket.TextMessage, jsonData)
-					if err != nil {
-						fmt.Printf("Ошибка отправки запроса: %v\n", err)
-						return
-					}
-				}
+			// 		err = targetClientConn.WriteMessage(websocket.TextMessage, jsonData)
+			// 		if err != nil {
+			// 			fmt.Printf("Ошибка отправки запроса: %v\n", err)
+			// 			return
+			// 		}
+			// 	}
 
-			}
+			// }
 
-			if Message.MessageType == "sdpAnswer" {
-				type Message struct {
-					Command string `json:"command"`
-					UserB   string `json:"userb"`
-					SDP     string `json:"sdp"`
-					UserA   string `json:"usera"`
-				}
+			// if Message.MessageType == "sdpAnswer" {
+			// 	type Message struct {
+			// 		Command string `json:"command"`
+			// 		UserB   string `json:"userb"`
+			// 		SDP     string `json:"sdp"`
+			// 		UserA   string `json:"usera"`
+			// 	}
 
-				var data map[string]interface{}
-				if err := json.Unmarshal([]byte(message), &data); err != nil {
-					fmt.Println("Ошибка при разборе JSON:", err)
-					return
-				}
+			// 	var data map[string]interface{}
+			// 	if err := json.Unmarshal([]byte(message), &data); err != nil {
+			// 		fmt.Println("Ошибка при разборе JSON:", err)
+			// 		return
+			// 	}
 
-				id, ok := data["sessionID"].(string)
-				if !ok {
-					fmt.Println("Не удалось получить значение id или тип не является строкой")
-					return
-				}
+			// 	id, ok := data["sessionID"].(string)
+			// 	if !ok {
+			// 		fmt.Println("Не удалось получить значение id или тип не является строкой")
+			// 		return
+			// 	}
 
-				sdp, ok := data["sdpAnswer"].(string)
-				if !ok {
-					fmt.Println("Не удалось получить значение sdpAnswer или тип не является строкой")
-					return
-				}
+			// 	sdp, ok := data["sdpAnswer"].(string)
+			// 	if !ok {
+			// 		fmt.Println("Не удалось получить значение sdpAnswer или тип не является строкой")
+			// 		return
+			// 	}
 
-				message := Message{
-					Command: "sdpAnswer",
-					UserB:   id,
-					SDP:     sdp,
-					UserA:   idStr,
-				}
+			// 	message := Message{
+			// 		Command: "sdpAnswer",
+			// 		UserB:   id,
+			// 		SDP:     sdp,
+			// 		UserA:   idStr,
+			// 	}
 
-				jsonData, err := json.Marshal(message)
-				if err != nil {
-					fmt.Println("Ошибка при преобразовании в JSON:", err)
-					return
-				}
+			// 	jsonData, err := json.Marshal(message)
+			// 	if err != nil {
+			// 		fmt.Println("Ошибка при преобразовании в JSON:", err)
+			// 		return
+			// 	}
 
-				targetClientConn, ok := findClientByID(id)
-				if !ok {
-					fmt.Printf("Клиент с идентификатором %s не найден\n", id)
-					return
-				}
+			// 	targetClientConn, ok := findClientByID(id)
+			// 	if !ok {
+			// 		fmt.Printf("Клиент с идентификатором %s не найден\n", id)
+			// 		return
+			// 	}
 
-				err = targetClientConn.WriteMessage(websocket.TextMessage, jsonData)
-				if err != nil {
-					fmt.Printf("Ошибка отправки запроса: %v\n", err)
-					return
-				}
+			// 	err = targetClientConn.WriteMessage(websocket.TextMessage, jsonData)
+			// 	if err != nil {
+			// 		fmt.Printf("Ошибка отправки запроса: %v\n", err)
+			// 		return
+			// 	}
 
-			}
+			// }
 
 		}
 
 		// Show log of all clients currently connected
 		fmt.Println("Currently connected clients:")
-		for id := range utils.Clients {
+		for id := range utils.ClientsInstance {
 			fmt.Println(id)
 		}
 	}))
@@ -1166,46 +1163,46 @@ func main() {
 
 			msg := update.Message
 
-			if strings.Contains(strings.ToLower(msg.Text), "активность") {
-				// Declare a queue
-				queueName := "profile_activity"                   // Replace with your desired queue name
-				conn, ch := initializers.ConnectRabbitMQ(&config) // Create a new connection and channel for each request
+			// if strings.Contains(strings.ToLower(msg.Text), "активность") {
+			// 	// Declare a queue
+			// 	queueName := "profile_activity"                   // Replace with your desired queue name
+			// 	conn, ch := initializers.ConnectRabbitMQ(&config) // Create a new connection and channel for each request
 
-				_, err := ch.QueueDeclare(
-					queueName,
-					false, // durable
-					false, // autoDelete
-					false, // exclusive
-					false, // noWait
-					nil,   // args
-				)
-				if err != nil {
-					log.Printf("Failed to declare a queue: %s", err)
-					// Handle the error if needed
-				}
+			// 	_, err := ch.QueueDeclare(
+			// 		queueName,
+			// 		false, // durable
+			// 		false, // autoDelete
+			// 		false, // exclusive
+			// 		false, // noWait
+			// 		nil,   // args
+			// 	)
+			// 	if err != nil {
+			// 		log.Printf("Failed to declare a queue: %s", err)
+			// 		// Handle the error if needed
+			// 	}
 
-				// Publish a message to the declared queue
-				message := "Hello, RabbitMQ!" // Replace with your desired message
-				err = utils.PublishMessage(ch, queueName, message)
-				if err != nil {
-					log.Printf("Failed to publish message: %s", err)
-					// Handle the error if needed
-				}
+			// 	// Publish a message to the declared queue
+			// 	message := "Hello, RabbitMQ!" // Replace with your desired message
+			// 	err = utils.PublishMessage(ch, queueName, message)
+			// 	if err != nil {
+			// 		log.Printf("Failed to publish message: %s", err)
+			// 		// Handle the error if needed
+			// 	}
 
-				// Consume messages from the declared queue
-				err = utils.ConsumeMessages(ch, conn, queueName)
-				if err != nil {
-					log.Printf("Failed to consume messages: %s", err)
-					// Handle the error if needed
-				}
+			// 	// Consume messages from the declared queue
+			// 	err = utils.ConsumeMessages(ch, conn, queueName)
+			// 	if err != nil {
+			// 		log.Printf("Failed to consume messages: %s", err)
+			// 		// Handle the error if needed
+			// 	}
 
-				// Start consuming messages in a separate goroutine
-				go func() {
-					// Call the controller to process the message
-					controllers.ProfileActivity(bot, msg)
-				}()
+			// 	// Start consuming messages in a separate goroutine
+			// 	go func() {
+			// 		// Call the controller to process the message
+			// 		controllers.ProfileActivity(bot, msg)
+			// 	}()
 
-			}
+			// }
 
 			if strings.Contains(strings.ToLower(msg.Text), "code") {
 
@@ -1272,59 +1269,59 @@ func main() {
 
 			}
 
-			if strings.Contains(strings.ToLower(msg.Text), "биллинг") {
+			// if strings.Contains(strings.ToLower(msg.Text), "биллинг") {
 
-				words := strings.Split(msg.Text, " ")
-				if len(words) > 1 {
-					afterSpace := strings.Join(words[1:], " ")
-					// Declare a queue
-					queueName := "make_balance"                       // Replace with your desired queue name
-					conn, ch := initializers.ConnectRabbitMQ(&config) // Create a new connection and channel for each request
+			// 	words := strings.Split(msg.Text, " ")
+			// 	if len(words) > 1 {
+			// 		afterSpace := strings.Join(words[1:], " ")
+			// 		// Declare a queue
+			// 		queueName := "make_balance"                       // Replace with your desired queue name
+			// 		conn, ch := initializers.ConnectRabbitMQ(&config) // Create a new connection and channel for each request
 
-					_, err := ch.QueueDeclare(
-						queueName,
-						false, // durable
-						false, // autoDelete
-						false, // exclusive
-						false, // noWait
-						nil,   // args
-					)
-					if err != nil {
-						log.Printf("Failed to declare a queue: %s", err)
-						// Handle the error if needed
-					}
+			// 		_, err := ch.QueueDeclare(
+			// 			queueName,
+			// 			false, // durable
+			// 			false, // autoDelete
+			// 			false, // exclusive
+			// 			false, // noWait
+			// 			nil,   // args
+			// 		)
+			// 		if err != nil {
+			// 			log.Printf("Failed to declare a queue: %s", err)
+			// 			// Handle the error if needed
+			// 		}
 
-					// Publish a message to the declared queue
-					message := "Hello, admin!" // Replace with your desired message
-					err = utils.PublishMessage(ch, queueName, message)
-					if err != nil {
-						log.Printf("Failed to publish message: %s", err)
-						// Handle the error if needed
-					}
+			// 		// Publish a message to the declared queue
+			// 		message := "Hello, admin!" // Replace with your desired message
+			// 		err = utils.PublishMessage(ch, queueName, message)
+			// 		if err != nil {
+			// 			log.Printf("Failed to publish message: %s", err)
+			// 			// Handle the error if needed
+			// 		}
 
-					// Consume messages from the declared queue
-					err = utils.ConsumeMessages(ch, conn, queueName)
-					if err != nil {
-						log.Printf("Failed to consume messages: %s", err)
-						// Handle the error if needed
-					}
+			// 		// Consume messages from the declared queue
+			// 		err = utils.ConsumeMessages(ch, conn, queueName)
+			// 		if err != nil {
+			// 			log.Printf("Failed to consume messages: %s", err)
+			// 			// Handle the error if needed
+			// 		}
 
-					// Start consuming messages in a separate goroutine
-					go func() {
-						// Call the controller to process the message
-						controllers.MakeCodes(bot, msg, afterSpace)
-					}()
-					// Use the 'afterSpace' variable as needed
-				} else {
-					fmt.Println("No text after the first space")
-				}
+			// 		// Start consuming messages in a separate goroutine
+			// 		go func() {
+			// 			// Call the controller to process the message
+			// 			controllers.MakeCodes(bot, msg, afterSpace)
+			// 		}()
+			// 		// Use the 'afterSpace' variable as needed
+			// 	} else {
+			// 		fmt.Println("No text after the first space")
+			// 	}
 
-			}
+			// }
 
-			if strings.Contains(strings.ToLower(msg.Text), "баланс") {
-				go controllers.BalanceProfile(bot, msg)
+			// if strings.Contains(strings.ToLower(msg.Text), "баланс") {
+			// 	go controllers.BalanceProfile(bot, msg)
 
-			}
+			// }
 
 			// Check if the received message is the /start command
 			if update.Message.Command() == "start" {
@@ -1336,12 +1333,12 @@ func main() {
 				// Check the user's language and set the appropriate welcome message
 				switch userLanguage {
 				case "ru":
-					welcomeMessage = "Добро пожаловать в Paxintrade, пришлите ваш код активации."
+					welcomeMessage = "Добро пожаловать в MYRUONLINE, пришлите ваш код активации."
 				case "ka":
-					welcomeMessage = "კეთილი იყოს თქვენი მობრძანება Paxintrade-ში, გაგზავნეთ თქვენი აქტივაციის კოდი."
+					welcomeMessage = "კეთილი იყოს თქვენი მობრძანება MYRUONLINE-ში, გაგზავნეთ თქვენი აქტივაციის კოდი."
 				// Add more cases for other languages as needed
 				default:
-					welcomeMessage = "Welcome to Paxintrade platform, send your activation code."
+					welcomeMessage = "Welcome to MYRUONLINE platform, send your activation code."
 				}
 
 				// Create a new message config
@@ -1361,33 +1358,6 @@ func main() {
 			// 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, inviteLink)
 			// 	bot.Send(msg)
 			// }
-			if update.Message.IsCommand() {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-
-				switch update.Message.Command() {
-				case "shop":
-					msg.Text = "Добро пожаловать в paxintrade:\n\n" +
-						"[Карта с балансом на 5.000](https://myru.online/cth5kWSupR4/moy-tovar-v-telegram) - 5.000 ₽  /buy1\n" +
-						"[Карта с балансом на 10.000](https://myru.online/cth5kWSupR4/moy-tovar-v-telegram) - 10.000 ₽ /buy2\n" +
-						"[Карта с балансом на 50.000](https://myru.online/cth5kWSupR4/moy-tovar-v-telegram) - 50.000 ₽ /buy3\n"
-					msg.ParseMode = tgbotapi.ModeMarkdown
-				case "buy1":
-					// Обработка покупки товара 1 через ЮKassa
-					msg.Text = "Покупка карты с предоплаченным балансом 5.000 ₽ успешно завершена! Ваш код: , используйте его в вашем личном кабинете"
-				case "buy2":
-					// Обработка покупки товара 1 через ЮKassa
-					msg.Text = "Покупка карты с предоплаченным балансом 10.000 ₽ успешно завершена! Ваш код: , используйте его в вашем личном кабинете"
-				case "buy3":
-					// Обработка покупки товара 1 через ЮKassa
-					msg.Text = "Покупка карты с предоплаченным балансом 50.000 ₽ успешно завершена! Ваш код: , используйте его в вашем личном кабинете"
-				}
-
-				// Send the message
-				_, err := bot.Send(msg)
-				if err != nil {
-					log.Println(err)
-				}
-			}
 
 			allMsgs <- update.Message
 		}
@@ -1410,7 +1380,7 @@ func main() {
 				if strings.Contains(strings.ToLower(msg.Text), word) {
 					matches := strings.Fields(strings.Replace(msg.Text, "link", "", -1))
 
-					fileURL := "https://example.com/default.png" // Set a default profile photo URL
+					fileURL := "https://img.myru.online/default.png" // Set a default profile photo URL
 
 					if msg.Chat.Type != "private" {
 						config := tgbotapi.UserProfilePhotosConfig{
