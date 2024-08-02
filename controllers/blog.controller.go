@@ -1453,8 +1453,12 @@ func GetBlogById(c *fiber.Ctx) error {
 		cities := make([]CityJSON, len(b.City))
 		for i, city := range b.City {
 			cityJSON := CityJSON{
-				ID:   city.ID,
-				Name: city.Translations[i].Name,
+				ID: city.ID,
+			}
+			if len(city.Translations) > 0 {
+				cityJSON.Name = city.Translations[0].Name // Ensure there is at least one translation
+			} else {
+				cityJSON.Name = "" // Default or error value
 			}
 			cities[i] = cityJSON
 		}
@@ -1462,8 +1466,12 @@ func GetBlogById(c *fiber.Ctx) error {
 		categories := make([]CategoryJSON, len(b.Catygory))
 		for i, category := range b.Catygory {
 			categoryJSON := CategoryJSON{
-				ID:   category.ID,
-				Name: category.Translations[i].Name,
+				ID: category.ID,
+			}
+			if len(category.Translations) > 0 {
+				categoryJSON.Name = category.Translations[0].Name // Ensure there is at least one translation
+			} else {
+				categoryJSON.Name = "" // Default or error value
 			}
 			categories[i] = categoryJSON
 		}
