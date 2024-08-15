@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
+	"hyperpage/utils"
 	"os"
 	"path/filepath"
 
@@ -131,4 +132,27 @@ func CreatePost(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(post)
+}
+
+func GetUserPosts(c *fiber.Ctx) error {
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Создание запроса к базе данных с фильтрацией по идентификатору пользователя
+	var posts []models.Post
+	query := initializers.DB.Where("user_id = ?", userResponse.ID).Preload("Files")
+
+	// Пагинация
+	err := utils.Paginate(c, query, &posts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
