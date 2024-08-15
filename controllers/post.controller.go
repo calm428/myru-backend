@@ -11,28 +11,20 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// Допустимые MIME-типы файлов
 var allowedMIMETypes = map[string]bool{
-	// Изображения
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/gif":  true,
-	// Документы
+	"image/jpeg":         true,
+	"image/png":          true,
+	"image/gif":          true,
 	"application/pdf":    true,
 	"application/msword": true,
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
 	"application/vnd.ms-excel": true,
 	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
-	// Аудио
-	"audio/mpeg":  true, // MP3 файлы
-	"audio/wav":   true, // WAV файлы
-	"audio/ogg":   true, // OGG файлы
-	"audio/x-m4a": true, // M4A файлы
-	// Видео
-	"video/mp4":        true, // MP4 файлы
-	"video/x-msvideo":  true, // AVI файлы
-	"video/x-matroska": true, // MKV файлы
-	"video/quicktime":  true, // MOV файлы
+	"audio/mpeg":       true,
+	"audio/wav":        true,
+	"video/mp4":        true,
+	"video/x-matroska": true,
+	// Добавьте другие допустимые MIME-типы при необходимости
 }
 
 func CreatePost(c *fiber.Ctx) error {
@@ -47,41 +39,52 @@ func CreatePost(c *fiber.Ctx) error {
 
 	post.ID = uuid.NewV4() // Генерация нового UUID для поста
 
-	// Обработка прикрепленных файлов
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+	post.UserID = userResponse.ID
+
+	// Обработка прикрепленных файлов, если они есть
 	form, err := c.MultipartForm()
-	if err != nil {
+	if err != nil && err != fiber.ErrUnprocessableEntity {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Failed to get multipart form",
 		})
 	}
 
-	files := form.File["files"]
-	for _, file := range files {
-		// Проверка MIME-типа файла
-		if !allowedMIMETypes[file.Header.Get("Content-Type")] {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": fmt.Sprintf("File type %s is not allowed", file.Header.Get("Content-Type")),
-			})
-		}
+	if form != nil {
+		files := form.File["files"]
+		for _, file := range files {
+			// Проверка MIME-типа файла
+			if !allowedMIMETypes[file.Header.Get("Content-Type")] {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": fmt.Sprintf("File type %s is not allowed", file.Header.Get("Content-Type")),
+				})
+			}
 
-		// Генерация пути для сохранения файла
-		fileID := uuid.NewV4()
-		filePath := filepath.Join("uploads", fmt.Sprintf("%s-%s", fileID.String(), file.Filename))
+			// Генерация пути для сохранения файла
+			fileID := uuid.NewV4()
+			filePath := filepath.Join("uploads", fmt.Sprintf("%s-%s", fileID.String(), file.Filename))
 
-		// Сохранение файла на сервере
-		if err := c.SaveFile(file, filePath); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error": "Failed to save file",
-			})
-		}
+			// Сохранение файла на сервере
+			if err := c.SaveFile(file, filePath); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Failed to save file",
+				})
+			}
 
-		// Создание записи о файле в базе данных
-		fileRecord := models.FilePost{
-			ID:     fileID,
-			URL:    filePath,
-			PostID: post.ID,
+			// Создание записи о файле в базе данных
+			fileRecord := models.FilePost{
+				ID:     fileID,
+				URL:    filePath,
+				PostID: post.ID,
+			}
+			post.Files = append(post.Files, fileRecord)
 		}
-		post.Files = append(post.Files, fileRecord)
 	}
 
 	// Сохранение поста в базе данных
