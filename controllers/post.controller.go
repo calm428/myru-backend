@@ -25,23 +25,20 @@ var allowedMIMETypes = map[string]bool{
 	"audio/wav":        true,
 	"video/mp4":        true,
 	"video/x-matroska": true,
-	// Добавьте другие допустимые MIME-типы при необходимости
 }
 
 func CreatePost(c *fiber.Ctx) error {
 	post := new(models.Post)
 
-	// Парсинг JSON данных (текст поста и др.)
 	if err := c.BodyParser(post); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
 	}
 
-	post.ID = uuid.NewV4() // Генерация нового UUID для поста
+	post.ID = uuid.NewV4()
 	config, _ := initializers.LoadConfig(".")
 
-	// Получение информации о пользователе из контекста
 	userResponse, ok := c.Locals("user").(models.UserResponse)
 	if !ok {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -51,7 +48,6 @@ func CreatePost(c *fiber.Ctx) error {
 	post.UserID = userResponse.ID
 	post.Content = c.FormValue("content")
 
-	// Путь к папке пользователя
 	dirPath := filepath.Join(config.IMGStorePath, userResponse.Storage)
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -59,7 +55,6 @@ func CreatePost(c *fiber.Ctx) error {
 		})
 	}
 
-	// Проверка размера директории пользователя
 	dirSize, err := calculateDirSize(dirPath)
 	if err != nil {
 		fmt.Printf("Error calculating directory size: %v\n", err)
@@ -68,14 +63,12 @@ func CreatePost(c *fiber.Ctx) error {
 		})
 	}
 
-	// Проверка превышения лимита
 	if dirSize > float64(userResponse.LimitStorage) {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Storage limit exceeded",
 		})
 	}
 
-	// Обработка прикрепленных файлов
 	form, err := c.MultipartForm()
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -84,34 +77,29 @@ func CreatePost(c *fiber.Ctx) error {
 	}
 
 	files := form.File["files"]
-	maxFileSize := int64(10 * 1024 * 1024) // 10 МБ в байтах
+	maxFileSize := int64(10 * 1024 * 1024)
 	for _, file := range files {
-		// Проверка MIME-типа файла
 		if !allowedMIMETypes[file.Header.Get("Content-Type")] {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": fmt.Sprintf("File type %s is not allowed", file.Header.Get("Content-Type")),
 			})
 		}
 
-		// Проверка размера файла
 		if file.Size > maxFileSize {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": fmt.Sprintf("File %s exceeds the 10MB size limit", file.Filename),
 			})
 		}
 
-		// Генерация пути для сохранения файла
 		fileID := uuid.NewV4()
 		filePath := filepath.Join(dirPath, fmt.Sprintf("%s-%s", fileID.String(), file.Filename))
 
-		// Сохранение файла на сервере
 		if err := c.SaveFile(file, filePath); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to save file",
 			})
 		}
 
-		// Создание записи о файле в базе данных
 		fileRecord := models.FilePost{
 			ID:     fileID,
 			URL:    filePath,
@@ -120,9 +108,7 @@ func CreatePost(c *fiber.Ctx) error {
 		post.Files = append(post.Files, fileRecord)
 	}
 
-	// Сохранение поста в базе данных
 	if err := initializers.DB.Create(&post).Error; err != nil {
-		// Удаление сохраненных файлов, если пост не был сохранен
 		for _, file := range post.Files {
 			os.Remove(file.URL)
 		}
@@ -135,7 +121,6 @@ func CreatePost(c *fiber.Ctx) error {
 }
 
 func GetUserPosts(c *fiber.Ctx) error {
-	// Получение информации о пользователе из контекста
 	userResponse, ok := c.Locals("user").(models.UserResponse)
 	if !ok {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -143,9 +128,12 @@ func GetUserPosts(c *fiber.Ctx) error {
 		})
 	}
 
-	// Создание запроса к базе данных с фильтрацией по идентификатору пользователя
 	var posts []models.Post
-	query := initializers.DB.Where("user_id = ?", userResponse.ID).Preload("Files")
+	query := initializers.DB.Where("user_id = ?", userResponse.ID).
+		Preload("Files").
+		Preload("Likes").
+		Preload("Comments").
+		Order("created_at DESC")
 
 	// Пагинация
 	err := utils.Paginate(c, query, &posts)
