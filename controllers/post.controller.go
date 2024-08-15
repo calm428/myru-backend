@@ -170,10 +170,20 @@ func DeletePost(c *fiber.Ctx) error {
 		})
 	}
 
+	config, _ := initializers.LoadConfig(".")
+	dirPath := filepath.Join(config.IMGStorePath, userResponse.Storage)
+
 	// Удаление файлов с диска
 	for _, file := range post.Files {
-		if err := os.Remove(file.URL); err != nil {
-			fmt.Printf("Error deleting file %s: %v\n", file.URL, err)
+		// Удаляем файл с диска
+		filePath := filepath.Join(dirPath, filepath.Base(file.URL))
+		if err := os.Remove(filePath); err != nil {
+			fmt.Printf("Error deleting file %s: %v\n", filePath, err)
+		}
+
+		// Удаляем запись о файле из базы данных
+		if err := initializers.DB.Delete(&file).Error; err != nil {
+			fmt.Printf("Error deleting file record from database: %v\n", err)
 		}
 	}
 
