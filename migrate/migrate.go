@@ -38,6 +38,18 @@ func main() {
 	if err := initializers.DB.AutoMigrate(&models.Domain{}); err != nil {
 		panic(err)
 	}
+	if err := initializers.DB.AutoMigrate(&models.Post{}); err != nil {
+		panic(err)
+	}
+	if err := initializers.DB.AutoMigrate(&models.CommentPost{}); err != nil {
+		panic(err)
+	}
+	if err := initializers.DB.AutoMigrate(&models.LikePost{}); err != nil {
+		panic(err)
+	}
+	if err := initializers.DB.AutoMigrate(&models.FilePost{}); err != nil {
+		panic(err)
+	}
 	if err := initializers.DB.AutoMigrate(&models.Billing{}); err != nil {
 		panic(err)
 	}
