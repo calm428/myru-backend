@@ -144,3 +144,96 @@ func GetUserPosts(c *fiber.Ctx) error {
 	return nil
 
 }
+
+func DeletePost(c *fiber.Ctx) error {
+	// Получение идентификатора поста из параметров запроса
+	postID := c.Params("id")
+	if postID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Post ID is required",
+		})
+	}
+
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Поиск поста в базе данных
+	var post models.Post
+	if err := initializers.DB.Where("id = ? AND user_id = ?", postID, userResponse.ID).Preload("Files").First(&post).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Post not found",
+		})
+	}
+
+	// Удаление файлов с диска
+	for _, file := range post.Files {
+		if err := os.Remove(file.URL); err != nil {
+			fmt.Printf("Error deleting file %s: %v\n", file.URL, err)
+		}
+	}
+
+	// Удаление поста из базы данных
+	if err := initializers.DB.Delete(&post).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete post",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Post deleted successfully",
+	})
+}
+
+func UpdatePost(c *fiber.Ctx) error {
+	// Получение идентификатора поста из параметров запроса
+	postID := c.Params("id")
+	if postID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Post ID is required",
+		})
+	}
+
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Поиск поста в базе данных
+	var post models.Post
+	if err := initializers.DB.Where("id = ? AND user_id = ?", postID, userResponse.ID).First(&post).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Post not found",
+		})
+	}
+
+	// Парсинг нового контента из тела запроса
+	type UpdatePostRequest struct {
+		Content string `json:"content"`
+	}
+	var updateData UpdatePostRequest
+	if err := c.BodyParser(&updateData); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	// Обновление контента поста
+	post.Content = updateData.Content
+
+	// Сохранение изменений в базе данных
+	if err := initializers.DB.Save(&post).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update post",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(post)
+}
