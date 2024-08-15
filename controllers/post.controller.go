@@ -48,6 +48,7 @@ func CreatePost(c *fiber.Ctx) error {
 		})
 	}
 	post.UserID = userResponse.ID
+	post.Content = c.FormValue("content")
 
 	// Путь к папке пользователя
 	dirPath := filepath.Join(config.IMGStorePath, userResponse.Storage)
