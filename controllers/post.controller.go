@@ -312,24 +312,16 @@ func GetComments(c *fiber.Ctx) error {
 		})
 	}
 
-	// Создание запроса для получения комментариев по post_id
-	query := initializers.DB.Where("post_id = ?", postID).
-		Preload("User").
-		Order("created_at DESC") // Загружать новые комментарии сверху
-
-	// Инициализация слайса для комментариев
+	// Получение комментариев для данного поста
 	var comments []models.CommentPost
-
-	// Использование функции пагинации
-	err := utils.Paginate(c, query, &comments)
-	if err != nil {
+	if err := initializers.DB.Where("post_id = ?", postID).
+		Preload("User").Order("created_at ASC").Find(&comments).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to get comments with pagination",
+			"error": "Failed to get comments",
 		})
 	}
 
-	// Возврат комментариев в ответе
-	return nil
+	return c.Status(fiber.StatusOK).JSON(comments)
 }
 
 func DeleteComment(c *fiber.Ctx) error {
