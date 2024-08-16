@@ -19,6 +19,11 @@ func Register(micro *fiber.App) {
 		router.Get("/get", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetUserPosts)
 		router.Delete("/delete/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.DeletePost)
 		router.Patch("/update/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.UpdatePost)
+
+		router.Post("/:id/comments", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.AddComment)
+		router.Get("/:id/comments", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetComments)
+		router.Delete("/:id/comments/:commentId", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.DeletePost)
+
 	})
 
 	micro.Route("/settings", func(router fiber.Router) {
