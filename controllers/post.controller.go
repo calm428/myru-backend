@@ -325,11 +325,13 @@ func GetComments(c *fiber.Ctx) error {
 }
 
 func DeleteComment(c *fiber.Ctx) error {
-	// Получение идентификатора комментария из параметров запроса
+	// Получение идентификаторов поста и комментария из параметров запроса
+	postID := c.Params("postId")
 	commentID := c.Params("commentId")
-	if commentID == "" {
+
+	if postID == "" || commentID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Comment ID is required",
+			"error": "Post ID and Comment ID are required",
 		})
 	}
 
@@ -343,7 +345,7 @@ func DeleteComment(c *fiber.Ctx) error {
 
 	// Поиск комментария в базе данных
 	var comment models.CommentPost
-	if err := initializers.DB.Where("id = ? AND user_id = ?", commentID, userResponse.ID).First(&comment).Error; err != nil {
+	if err := initializers.DB.Where("id = ? AND post_id = ? AND user_id = ?", commentID, postID, userResponse.ID).First(&comment).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Comment not found",
 		})
