@@ -22,7 +22,7 @@ func Register(micro *fiber.App) {
 
 		router.Post("/:id/comments", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.AddComment)
 		router.Get("/:id/comments", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetComments)
-		router.Delete("/:id/comments/:commentId", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.DeletePost)
+		router.Delete("/:id/comments/:commentId", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.DeleteComment)
 
 	})
 
