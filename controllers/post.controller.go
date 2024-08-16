@@ -7,6 +7,7 @@ import (
 	"hyperpage/utils"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	uuid "github.com/satori/go.uuid"
@@ -246,4 +247,116 @@ func UpdatePost(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(post)
+}
+
+func AddComment(c *fiber.Ctx) error {
+	// Получение идентификатора поста из параметров запроса
+	postID := c.Params("id")
+	if postID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Post ID is required",
+		})
+	}
+
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Парсинг комментария из тела запроса
+	type AddCommentRequest struct {
+		Content string `json:"content"`
+	}
+	var commentData AddCommentRequest
+	if err := c.BodyParser(&commentData); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	// Создание нового комментария
+	comment := models.CommentPost{
+		ID:        uuid.NewV4(),
+		PostID:    uuid.FromStringOrNil(postID),
+		UserID:    userResponse.ID,
+		Content:   commentData.Content,
+		CreatedAt: time.Now(),
+	}
+
+	// Сохранение комментария в базе данных
+	if err := initializers.DB.Create(&comment).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to add comment",
+		})
+	}
+
+	// Предзагрузка данных о пользователе, чтобы вернуть полный объект комментария
+	if err := initializers.DB.Preload("User").First(&comment, comment.ID).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to load user information",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(comment)
+}
+
+func GetComments(c *fiber.Ctx) error {
+	// Получение идентификатора поста из параметров запроса
+	postID := c.Params("id")
+	if postID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Post ID is required",
+		})
+	}
+
+	// Получение комментариев для данного поста
+	var comments []models.CommentPost
+	if err := initializers.DB.Where("post_id = ?", postID).
+		Preload("User").Order("created_at ASC").Find(&comments).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to get comments",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(comments)
+}
+
+func DeleteComment(c *fiber.Ctx) error {
+	// Получение идентификатора комментария из параметров запроса
+	commentID := c.Params("commentId")
+	if commentID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Comment ID is required",
+		})
+	}
+
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Поиск комментария в базе данных
+	var comment models.CommentPost
+	if err := initializers.DB.Where("id = ? AND user_id = ?", commentID, userResponse.ID).First(&comment).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Comment not found",
+		})
+	}
+
+	// Удаление комментария из базы данных
+	if err := initializers.DB.Delete(&comment).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete comment",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "Comment deleted successfully",
+	})
 }
