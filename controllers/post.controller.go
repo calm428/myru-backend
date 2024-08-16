@@ -321,7 +321,7 @@ func GetComments(c *fiber.Ctx) error {
 	// Получение комментариев для данного поста
 	var comments []models.CommentPost
 	if err := initializers.DB.Where("post_id = ?", postID).
-		Preload("User").Order("created_at ASC").Find(&comments).Error; err != nil {
+		Preload("User").Order("created_at DESC").Find(&comments).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to get comments",
 		})
