@@ -171,6 +171,12 @@ func DeletePost(c *fiber.Ctx) error {
 		})
 	}
 
+	if err := initializers.DB.Where("post_id = ?", postID).Delete(&models.CommentPost{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete associated comments",
+		})
+	}
+
 	config, _ := initializers.LoadConfig(".")
 	dirPath := filepath.Join(config.IMGStorePath, userResponse.Storage)
 
@@ -326,7 +332,7 @@ func GetComments(c *fiber.Ctx) error {
 
 func DeleteComment(c *fiber.Ctx) error {
 	// Получение идентификаторов поста и комментария из параметров запроса
-	postID := c.Params("postId")
+	postID := c.Params("id") // Используйте "id" для postId
 	commentID := c.Params("commentId")
 
 	if postID == "" || commentID == "" {
