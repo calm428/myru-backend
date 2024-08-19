@@ -368,3 +368,52 @@ func DeleteComment(c *fiber.Ctx) error {
 		"message": "Comment deleted successfully",
 	})
 }
+
+func ToggleLike(c *fiber.Ctx) error {
+	// Получение идентификатора поста из параметров запроса
+	postID := c.Params("id")
+	if postID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Post ID is required",
+		})
+	}
+
+	// Получение информации о пользователе из контекста
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Проверка, существует ли лайк от этого пользователя для этого поста
+	var like models.LikePost
+	if err := initializers.DB.Where("post_id = ? AND user_id = ?", postID, userResponse.ID).First(&like).Error; err == nil {
+		// Лайк найден, удаляем его
+		if err := initializers.DB.Delete(&like).Error; err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to remove like",
+			})
+		}
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"message": "Like removed successfully",
+		})
+	}
+
+	// Лайк не найден, создаем новый
+	like = models.LikePost{
+		ID:     uuid.NewV4(),
+		PostID: uuid.FromStringOrNil(postID),
+		UserID: userResponse.ID,
+	}
+
+	if err := initializers.DB.Create(&like).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to add like",
+		})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "Like added successfully",
+	})
+}
