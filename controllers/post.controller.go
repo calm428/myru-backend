@@ -398,6 +398,9 @@ func ToggleLike(c *fiber.Ctx) error {
 				"error": "Failed to remove like",
 			})
 		}
+
+		go utils.NotifyClientsAboutLike(like, false)
+
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"message": "Like removed successfully",
 		})
@@ -415,6 +418,8 @@ func ToggleLike(c *fiber.Ctx) error {
 			"error": "Failed to add like",
 		})
 	}
+
+	go utils.NotifyClientsAboutLike(like, true)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "Like added successfully",
