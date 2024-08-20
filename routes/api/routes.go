@@ -15,7 +15,7 @@ import (
 func Register(micro *fiber.App) {
 
 	micro.Route("/post", func(router fiber.Router) {
-		router.Get("/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetPostByID)
+		router.Get("/get/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetPostByID)
 
 		router.Post("/create", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.CreatePost)
 		router.Get("/get", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetUserPosts)
