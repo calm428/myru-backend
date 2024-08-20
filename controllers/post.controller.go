@@ -420,3 +420,27 @@ func ToggleLike(c *fiber.Ctx) error {
 		"message": "Like added successfully",
 	})
 }
+
+func GetPostByID(c *fiber.Ctx) error {
+	// Получение идентификатора поста из параметров запроса
+	postID := c.Params("id")
+	if postID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Post ID is required",
+		})
+	}
+
+	// Поиск поста в базе данных
+	var post models.Post
+	if err := initializers.DB.Where("id = ?", postID).
+		Preload("Files").
+		Preload("Likes").
+		Preload("Comments").
+		First(&post).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Post not found",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(post)
+}
