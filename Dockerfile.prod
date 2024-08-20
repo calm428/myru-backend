@@ -12,6 +12,8 @@ FROM keymetrics/pm2:18-alpine
 
 WORKDIR /app
 
+RUN apk add --no-cache ffmpeg
+
 COPY --from=builder  /app/bin/myru-api .
 COPY templates ./templates
 COPY views ./views
