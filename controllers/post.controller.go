@@ -460,7 +460,7 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 
 	// Получение списка пользователей, на которых подписан текущий пользователь
 	var user models.User
-	if err := initializers.DB.Preload("Followings").Where("id = ?", userResponse.ID).First(&user).Error; err != nil {
+	if err := initializers.DB.Preload("Followers").Where("id = ?", userResponse.ID).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Cannot find user",
 		})
@@ -469,7 +469,7 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 	// Сбор ID всех пользователей, включая самого пользователя и тех, на кого он подписан
 	var userIds []uuid.UUID
 	userIds = append(userIds, user.ID) // Добавление ID самого пользователя
-	for _, following := range user.Followings {
+	for _, following := range user.Followers {
 		userIds = append(userIds, following.ID)
 	}
 
