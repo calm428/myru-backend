@@ -444,3 +444,43 @@ func GetPostByID(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(post)
 }
+
+func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
+	userResponse, ok := c.Locals("user").(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot get user information",
+		})
+	}
+
+	// Получение списка пользователей, на которых подписан текущий пользователь
+	var user models.User
+	if err := initializers.DB.Preload("Followings").Where("id = ?", userResponse.ID).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Cannot find user",
+		})
+	}
+
+	// Сбор ID всех пользователей, включая самого пользователя и тех, на кого он подписан
+	var userIds []uuid.UUID
+	userIds = append(userIds, user.ID) // Добавление ID самого пользователя
+	for _, following := range user.Followings {
+		userIds = append(userIds, following.ID)
+	}
+
+	// Получение постов всех пользователей по их ID
+	var posts []models.Post
+	query := initializers.DB.Where("user_id IN ?", userIds).
+		Preload("Files").
+		Preload("Likes").
+		Preload("Comments").
+		Order("created_at DESC")
+
+	// Пагинация
+	err := utils.Paginate(c, query, &posts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
