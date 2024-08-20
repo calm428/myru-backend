@@ -226,3 +226,25 @@ func NotifyClientsAboutLike(like models.LikePost, isLiked bool) {
 		}
 	}
 }
+
+func NotifyClientsAboutNewPost(post models.Post) {
+	message := ClientMessage{
+		Command: "newPost",
+		Data: map[string]interface{}{
+			"post": post,
+		},
+	}
+
+	// Отправляем сообщение всем клиентам
+	for _, client := range ClientsInstance {
+		jsonData, err := json.Marshal(message)
+		if err != nil {
+			fmt.Printf("Failed to marshal post data: %v\n", err)
+			continue
+		}
+
+		if err := client.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+			fmt.Printf("Failed to send message to client: %v\n", err)
+		}
+	}
+}

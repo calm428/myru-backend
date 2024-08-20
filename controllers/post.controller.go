@@ -118,6 +118,8 @@ func CreatePost(c *fiber.Ctx) error {
 		})
 	}
 
+	go utils.NotifyClientsAboutNewPost(*post)
+
 	return c.Status(fiber.StatusCreated).JSON(post)
 }
 
