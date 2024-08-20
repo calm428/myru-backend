@@ -474,6 +474,7 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 		Preload("Files").
 		Preload("Likes").
 		Preload("Comments").
+		Preload("User").
 		Order("created_at DESC")
 
 	// Пагинация
