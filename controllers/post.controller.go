@@ -210,6 +210,8 @@ func DeletePost(c *fiber.Ctx) error {
 		})
 	}
 
+	go utils.NotifyClientsAboutDeletedPost(post.ID)
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Post deleted successfully",
 	})
@@ -260,6 +262,8 @@ func UpdatePost(c *fiber.Ctx) error {
 			"error": "Failed to update post",
 		})
 	}
+
+	go utils.NotifyClientsAboutUpdatedPost(post)
 
 	return c.Status(fiber.StatusOK).JSON(post)
 }
@@ -375,6 +379,8 @@ func DeleteComment(c *fiber.Ctx) error {
 			"error": "Failed to delete comment",
 		})
 	}
+
+	go utils.NotifyClientsAboutDeletedComment(postID, commentID)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Comment deleted successfully",

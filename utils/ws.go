@@ -11,6 +11,7 @@ import (
 	"hyperpage/models"
 
 	"github.com/gofiber/contrib/websocket"
+	uuid "github.com/satori/go.uuid"
 )
 
 // Тип для клиентов
@@ -245,6 +246,74 @@ func NotifyClientsAboutNewPost(post models.Post) {
 
 		if err := client.WriteMessage(websocket.TextMessage, jsonData); err != nil {
 			fmt.Printf("Failed to send message to client: %v\n", err)
+		}
+	}
+}
+
+func NotifyClientsAboutDeletedPost(postID uuid.UUID) {
+	message := ClientMessage{
+		Command: "deletePost",
+		Data: map[string]interface{}{
+			"postId": postID.String(),
+		},
+	}
+
+	// Отправляем сообщение всем клиентам
+	for _, client := range ClientsInstance {
+		jsonData, err := json.Marshal(message)
+		if err != nil {
+			fmt.Printf("Failed to marshal delete post data: %v\n", err)
+			continue
+		}
+
+		if err := client.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+			fmt.Printf("Failed to send delete post message to client: %v\n", err)
+		}
+	}
+}
+
+func NotifyClientsAboutDeletedComment(postID, commentID string) {
+	message := ClientMessage{
+		Command: "deleteComment",
+		Data: map[string]interface{}{
+			"postId":    postID,
+			"commentId": commentID,
+		},
+	}
+
+	// Отправляем сообщение всем клиентам
+	for _, client := range ClientsInstance {
+		jsonData, err := json.Marshal(message)
+		if err != nil {
+			fmt.Printf("Failed to marshal delete comment data: %v\n", err)
+			continue
+		}
+
+		if err := client.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+			fmt.Printf("Failed to send delete comment message to client: %v\n", err)
+		}
+	}
+}
+
+func NotifyClientsAboutUpdatedPost(post models.Post) {
+	message := ClientMessage{
+		Command: "updatePost",
+		Data: map[string]interface{}{
+			"postId":  post.ID.String(),
+			"content": post.Content,
+		},
+	}
+
+	// Отправляем сообщение всем клиентам
+	for _, client := range ClientsInstance {
+		jsonData, err := json.Marshal(message)
+		if err != nil {
+			fmt.Printf("Failed to marshal update post data: %v\n", err)
+			continue
+		}
+
+		if err := client.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+			fmt.Printf("Failed to send update post message to client: %v\n", err)
 		}
 	}
 }
