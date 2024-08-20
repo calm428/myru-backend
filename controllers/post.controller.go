@@ -26,6 +26,7 @@ var allowedMIMETypes = map[string]bool{
 	"audio/wav":        true,
 	"video/mp4":        true,
 	"video/x-matroska": true,
+	"video/quicktime":  true, // Добавление поддержки формата MOV
 }
 
 func CreatePost(c *fiber.Ctx) error {
