@@ -6,6 +6,7 @@ import (
 	"hyperpage/models"
 	"hyperpage/utils"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -94,17 +95,31 @@ func CreatePost(c *fiber.Ctx) error {
 		}
 
 		fileID := uuid.NewV4()
-		filePath := filepath.Join(dirPath, fmt.Sprintf("%s-%s", fileID.String(), file.Filename))
+		originalFilePath := filepath.Join(dirPath, fmt.Sprintf("%s-%s", fileID.String(), file.Filename))
+		finalFilePath := originalFilePath
 
-		if err := c.SaveFile(file, filePath); err != nil {
+		if err := c.SaveFile(file, originalFilePath); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to save file",
 			})
 		}
 
+		// Конвертация MOV в MP4
+		if file.Header.Get("Content-Type") == "video/quicktime" {
+			finalFilePath = filepath.Join(dirPath, fmt.Sprintf("%s.mp4", fileID.String())) // Убрали file.Filename для чистоты именования
+			cmd := exec.Command("ffmpeg", "-i", originalFilePath, finalFilePath)
+			if err := cmd.Run(); err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Failed to convert MOV to MP4",
+				})
+			}
+			// Удаляем оригинальный файл MOV
+			os.Remove(originalFilePath)
+		}
+
 		fileRecord := models.FilePost{
 			ID:     fileID,
-			URL:    filePath,
+			URL:    finalFilePath,
 			PostID: post.ID,
 		}
 		post.Files = append(post.Files, fileRecord)
