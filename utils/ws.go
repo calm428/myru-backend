@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"hyperpage/initializers"
+	"hyperpage/models"
 
 	"github.com/gofiber/contrib/websocket"
 )
@@ -177,4 +178,27 @@ func GetClientConnFromRedis(clientID string) (*websocket.Conn, error) {
 	// fmt.Println(conn)
 
 	return conn, nil
+}
+
+func NotifyClientsAboutNewComment(comment models.CommentPost) {
+	message := ClientMessage{
+		Command: "newComment",
+		Data: map[string]interface{}{
+			"postId":  comment.PostID.String(),
+			"comment": comment,
+		},
+	}
+
+	// Отправляем сообщение всем клиентам
+	for _, client := range ClientsInstance {
+		jsonData, err := json.Marshal(message)
+		if err != nil {
+			fmt.Printf("Failed to marshal comment data: %v\n", err)
+			continue
+		}
+
+		if err := client.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+			fmt.Printf("Failed to send message to client: %v\n", err)
+		}
+	}
 }

@@ -276,6 +276,7 @@ func AddComment(c *fiber.Ctx) error {
 	type AddCommentRequest struct {
 		Content string `json:"content"`
 	}
+
 	var commentData AddCommentRequest
 	if err := c.BodyParser(&commentData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -305,6 +306,8 @@ func AddComment(c *fiber.Ctx) error {
 			"error": "Failed to load user information",
 		})
 	}
+
+	go utils.NotifyClientsAboutNewComment(comment)
 
 	return c.Status(fiber.StatusCreated).JSON(comment)
 }
