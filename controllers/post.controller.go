@@ -177,6 +177,13 @@ func DeletePost(c *fiber.Ctx) error {
 		})
 	}
 
+	// Удаление лайков, связанных с постом
+	if err := initializers.DB.Where("post_id = ?", postID).Delete(&models.LikePost{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete associated likes",
+		})
+	}
+
 	config, _ := initializers.LoadConfig(".")
 	dirPath := filepath.Join(config.IMGStorePath, userResponse.Storage)
 
