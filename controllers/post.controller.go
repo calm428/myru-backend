@@ -5,9 +5,11 @@ import (
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,6 +36,7 @@ func CreatePost(c *fiber.Ctx) error {
 	post := new(models.Post)
 
 	if err := c.BodyParser(post); err != nil {
+		log.Printf("Error parsing JSON: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
 		})
@@ -44,6 +47,7 @@ func CreatePost(c *fiber.Ctx) error {
 
 	userResponse, ok := c.Locals("user").(models.UserResponse)
 	if !ok {
+		log.Printf("Error retrieving user information from context")
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Cannot get user information",
 		})
@@ -51,8 +55,42 @@ func CreatePost(c *fiber.Ctx) error {
 	post.UserID = userResponse.ID
 	post.Content = c.FormValue("content")
 
+	// Обработка тегов
+	tagNames := c.FormValue("tags")
+	tags := []models.Tag{}
+	if tagNames != "" {
+		tagNamesArray := strings.Split(tagNames, ",")
+		existingTags := []models.Tag{}
+		initializers.DB.Where("name IN ?", tagNamesArray).Find(&existingTags)
+		existingTagMap := make(map[string]models.Tag)
+		for _, tag := range existingTags {
+			existingTagMap[tag.Name] = tag
+		}
+
+		for _, tagName := range tagNamesArray {
+			tagName = strings.TrimSpace(tagName)
+			if len(tagName) == 0 || len(tagName) > 100 {
+				continue // Пропуск пустых и слишком длинных тегов
+			}
+			if tag, found := existingTagMap[tagName]; found {
+				tags = append(tags, tag)
+			} else {
+				newTag := models.Tag{
+					ID:   uuid.NewV4(),
+					Name: tagName,
+				}
+				tags = append(tags, newTag)
+				if err := initializers.DB.Create(&newTag).Error; err != nil {
+					log.Printf("Error creating tag %s: %v", tagName, err)
+				}
+			}
+		}
+	}
+	post.Tags = tags
+
 	dirPath := filepath.Join(config.IMGStorePath, userResponse.Storage)
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+		log.Printf("Error creating user directory: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to create user directory",
 		})
@@ -60,7 +98,7 @@ func CreatePost(c *fiber.Ctx) error {
 
 	dirSize, err := calculateDirSize(dirPath)
 	if err != nil {
-		fmt.Printf("Error calculating directory size: %v\n", err)
+		log.Printf("Error calculating directory size: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to calculate directory size",
 		})
@@ -74,6 +112,7 @@ func CreatePost(c *fiber.Ctx) error {
 
 	form, err := c.MultipartForm()
 	if err != nil {
+		log.Printf("Error getting multipart form: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Failed to get multipart form",
 		})
@@ -83,12 +122,14 @@ func CreatePost(c *fiber.Ctx) error {
 	maxFileSize := int64(10 * 1024 * 1024)
 	for _, file := range files {
 		if !allowedMIMETypes[file.Header.Get("Content-Type")] {
+			log.Printf("File type %s is not allowed", file.Header.Get("Content-Type"))
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": fmt.Sprintf("File type %s is not allowed", file.Header.Get("Content-Type")),
 			})
 		}
 
 		if file.Size > maxFileSize {
+			log.Printf("File %s exceeds the 10MB size limit", file.Filename)
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error": fmt.Sprintf("File %s exceeds the 10MB size limit", file.Filename),
 			})
@@ -99,6 +140,7 @@ func CreatePost(c *fiber.Ctx) error {
 		finalFilePath := originalFilePath
 
 		if err := c.SaveFile(file, originalFilePath); err != nil {
+			log.Printf("Error saving file %s: %v", file.Filename, err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Failed to save file",
 			})
@@ -106,15 +148,18 @@ func CreatePost(c *fiber.Ctx) error {
 
 		// Конвертация MOV в MP4
 		if file.Header.Get("Content-Type") == "video/quicktime" {
-			finalFilePath = filepath.Join(dirPath, fmt.Sprintf("%s.mp4", fileID.String())) // Убрали file.Filename для чистоты именования
+			finalFilePath = filepath.Join(dirPath, fmt.Sprintf("%s.mp4", fileID.String()))
 			cmd := exec.Command("ffmpeg", "-i", originalFilePath, finalFilePath)
 			if err := cmd.Run(); err != nil {
+				log.Printf("Error converting MOV to MP4: %v", err)
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"error": "Failed to convert MOV to MP4",
 				})
 			}
 			// Удаляем оригинальный файл MOV
-			os.Remove(originalFilePath)
+			if err := os.Remove(originalFilePath); err != nil {
+				log.Printf("Error deleting original MOV file %s: %v", originalFilePath, err)
+			}
 		}
 
 		fileRecord := models.FilePost{
@@ -126,8 +171,11 @@ func CreatePost(c *fiber.Ctx) error {
 	}
 
 	if err := initializers.DB.Create(&post).Error; err != nil {
+		log.Printf("Error creating post: %v", err)
 		for _, file := range post.Files {
-			os.Remove(file.URL)
+			if err := os.Remove(file.URL); err != nil {
+				log.Printf("Error deleting file %s: %v", file.URL, err)
+			}
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Cannot create post",
@@ -153,6 +201,13 @@ func GetUserPosts(c *fiber.Ctx) error {
 		Preload("Likes").
 		Preload("Comments").
 		Order("created_at DESC")
+
+	tag := c.Query("tag")
+	if tag != "" {
+		query = query.Joins("JOIN post_tags ON post_tags.post_id = posts.id").
+		Joins("JOIN tags ON tags.id = post_tags.tag_id").
+		Where("tags.name = ?", tag)
+	}
 
 	// Пагинация
 	err := utils.Paginate(c, query, &posts)
@@ -219,12 +274,15 @@ func DeletePost(c *fiber.Ctx) error {
 		}
 	}
 
+	
+
 	// Удаление поста из базы данных
 	if err := initializers.DB.Delete(&post).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to delete post",
 		})
 	}
+
 
 	go utils.NotifyClientsAboutDeletedPost(post.ID)
 
@@ -252,17 +310,18 @@ func UpdatePost(c *fiber.Ctx) error {
 
 	// Поиск поста в базе данных
 	var post models.Post
-	if err := initializers.DB.Where("id = ? AND user_id = ?", postID, userResponse.ID).First(&post).Error; err != nil {
+	if err := initializers.DB.Where("id = ? AND user_id = ?", postID, userResponse.ID).Preload("Tags").First(&post).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Post not found",
 		})
 	}
 
-	// Парсинг нового контента из тела запроса
-	type UpdatePostRequest struct {
+	// Структура для получения данных из запроса
+	var updateData struct {
 		Content string `json:"content"`
+		Tags    string `json:"tags"` // Поле для тегов
 	}
-	var updateData UpdatePostRequest
+
 	if err := c.BodyParser(&updateData); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Cannot parse JSON",
@@ -270,7 +329,41 @@ func UpdatePost(c *fiber.Ctx) error {
 	}
 
 	// Обновление контента поста
-	post.Content = updateData.Content
+	if updateData.Content != "" {
+		post.Content = updateData.Content
+	}
+
+	// Обновление тегов, если они переданы
+	if updateData.Tags != "" {
+		tagNamesArray := strings.Split(updateData.Tags, ",")
+		tags := []models.Tag{}
+		existingTags := []models.Tag{}
+		initializers.DB.Where("name IN ?", tagNamesArray).Find(&existingTags)
+		existingTagMap := make(map[string]models.Tag)
+		for _, tag := range existingTags {
+			existingTagMap[tag.Name] = tag
+		}
+
+		for _, tagName := range tagNamesArray {
+			tagName = strings.TrimSpace(tagName)
+			if len(tagName) == 0 || len(tagName) > 100 {
+				continue // Пропуск пустых и слишком длинных тегов
+			}
+			if tag, found := existingTagMap[tagName]; found {
+				tags = append(tags, tag)
+			} else {
+				newTag := models.Tag{
+					ID:   uuid.NewV4(),
+					Name: tagName,
+				}
+				tags = append(tags, newTag)
+				if err := initializers.DB.Create(&newTag).Error; err != nil {
+					log.Printf("Error creating tag %s: %v", tagName, err)
+				}
+			}
+		}
+		post.Tags = tags
+	}
 
 	// Сохранение изменений в базе данных
 	if err := initializers.DB.Save(&post).Error; err != nil {
@@ -283,6 +376,7 @@ func UpdatePost(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(post)
 }
+
 
 func AddComment(c *fiber.Ctx) error {
 	// Получение идентификатора поста из параметров запроса
