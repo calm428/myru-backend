@@ -45,6 +45,7 @@ type FilePost struct {
 type Tag struct {
 	ID   uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()" json:"id"`
 	Name string    `gorm:"type:varchar(100);uniqueIndex" json:"name"`
+	Posts []Post   `gorm:"many2many:post_tags;" json:"posts"`
 }
 
 type PostTag struct {
