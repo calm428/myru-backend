@@ -200,6 +200,7 @@ func GetUserPosts(c *fiber.Ctx) error {
 		Preload("Files").
 		Preload("Likes").
 		Preload("Comments").
+		Preload("Tags").
 		Order("created_at DESC")
 
 	tag := c.Query("tag")
@@ -208,6 +209,7 @@ func GetUserPosts(c *fiber.Ctx) error {
 		Joins("JOIN tags ON tags.id = post_tags.tag_id").
 		Where("tags.name = ?", tag)
 	}
+
 
 	// Пагинация
 	err := utils.Paginate(c, query, &posts)
@@ -605,8 +607,16 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 		Preload("Likes").
 		Preload("Comments").
 		Preload("User").
+		Preload("Tags").
 		Order("created_at DESC")
 
+	tag := c.Query("tag")
+	if tag != "" {
+		query = query.Joins("JOIN post_tags ON post_tags.post_id = posts.id").
+			Joins("JOIN tags ON tags.id = post_tags.tag_id").
+			Where("tags.name = ?", tag)
+	}
+	
 	// Пагинация
 	err := utils.Paginate(c, query, &posts)
 	if err != nil {
