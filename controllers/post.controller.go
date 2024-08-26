@@ -612,6 +612,11 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 
 	tag := c.Query("tag")
 	if tag != "" {
+		// Убедитесь, что тег начинается с #
+		if !strings.HasPrefix(tag, "#") {
+			tag = "#" + tag
+		}
+
 		query = query.Joins("JOIN post_tags ON post_tags.post_id = posts.id").
 			Joins("JOIN tags ON tags.id = post_tags.tag_id").
 			Where("tags.name = ?", tag)
