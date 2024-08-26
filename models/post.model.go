@@ -16,6 +16,8 @@ type Post struct {
 	Likes     []LikePost    `json:"likes"`
 	Comments  []CommentPost `json:"comments"`
 	Files     []FilePost    `json:"files"`
+	Tags      []Tag         `gorm:"many2many:post_tags;" json:"tags"`
+
 }
 
 type LikePost struct {
@@ -38,4 +40,14 @@ type FilePost struct {
 	ID     uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()" json:"id"`
 	URL    string    `json:"url"`
 	PostID uuid.UUID `json:"post_id"`
+}
+
+type Tag struct {
+	ID   uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()" json:"id"`
+	Name string    `gorm:"type:varchar(100);uniqueIndex" json:"name"`
+}
+
+type PostTag struct {
+	PostID uuid.UUID `gorm:"type:uuid" json:"post_id"`
+	TagID  uuid.UUID `gorm:"type:uuid" json:"tag_id"`
 }
