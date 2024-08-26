@@ -48,6 +48,6 @@ type Tag struct {
 }
 
 type PostTag struct {
-	PostID uuid.UUID `gorm:"type:uuid" json:"post_id"`
-	TagID  uuid.UUID `gorm:"type:uuid" json:"tag_id"`
+    PostID uuid.UUID `gorm:"type:uuid;primaryKey" json:"post_id"`
+    TagID  uuid.UUID `gorm:"type:uuid;primaryKey" json:"tag_id"`
 }
