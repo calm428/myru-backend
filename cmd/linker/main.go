@@ -71,22 +71,21 @@ func main() {
 	fmt.Println("Линковка завершена.")
 }
 
-// extractHashtags извлекает все строки, начинающиеся с #, включая кириллические и латинские символы
 func extractHashtags(content string) []string {
-	// Регулярное выражение для поиска хэштегов
-	re := regexp.MustCompile(`(?i)#\w[\w-]*`)
-	matches := re.FindAllString(content, -1)
+    // Обновленное регулярное выражение для поиска хэштегов
+    re := regexp.MustCompile(`(?i)#[\p{L}\p{N}_-]+`)
+    matches := re.FindAllString(content, -1)
 
-	// Удаляем дублирующиеся хэштеги
-	tagMap := make(map[string]bool)
-	var tags []string
-	for _, tag := range matches {
-		cleanTag := strings.Trim(tag, "#.,!? ")
-		if _, exists := tagMap[cleanTag]; !exists && len(cleanTag) > 0 {
-			tags = append(tags, "#"+cleanTag)
-			tagMap[cleanTag] = true
-		}
-	}
+    // Удаляем дублирующиеся хэштеги
+    tagMap := make(map[string]bool)
+    var tags []string
+    for _, tag := range matches {
+        cleanTag := strings.Trim(tag, "#.,!? ")
+        if _, exists := tagMap[cleanTag]; !exists && len(cleanTag) > 0 {
+            tags = append(tags, "#"+cleanTag)
+            tagMap[cleanTag] = true
+        }
+    }
 
-	return tags
+    return tags
 }
