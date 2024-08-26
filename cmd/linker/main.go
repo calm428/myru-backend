@@ -12,6 +12,14 @@ import (
 )
 
 func main() {
+	// Загрузка конфигурации
+	config, err := initializers.LoadConfig(".")
+	if err != nil {
+		log.Fatalf("Ошибка при загрузке конфигурации: %v", err)
+	}
+
+	// Подключение к базе данных
+	initializers.ConnectDB(&config)
 
 	// Получение всех постов
 	var posts []models.Post
