@@ -162,6 +162,22 @@ func CreatePost(c *fiber.Ctx) error {
 			}
 		}
 
+		// Конвертация WAV в MP3
+		if file.Header.Get("Content-Type") == "audio/wav" {
+			finalFilePath = filepath.Join(dirPath, fmt.Sprintf("%s.mp3", fileID.String()))
+			cmd := exec.Command("ffmpeg", "-i", originalFilePath, finalFilePath)
+			if err := cmd.Run(); err != nil {
+				log.Printf("Error converting WAV to MP3: %v", err)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "Failed to convert WAV to MP3",
+				})
+			}
+			// Удаляем оригинальный файл WAV
+			if err := os.Remove(originalFilePath); err != nil {
+				log.Printf("Error deleting original WAV file %s: %v", originalFilePath, err)
+			}
+		}
+
 		fileRecord := models.FilePost{
 			ID:     fileID,
 			URL:    finalFilePath,
