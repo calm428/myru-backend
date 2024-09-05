@@ -226,7 +226,6 @@ func GetUserPosts(c *fiber.Ctx) error {
 
 	var posts []models.Post
 	query := initializers.DB.Where("user_id = ?", userResponse.ID).
-		Joins("LEFT JOIN blogs ON blogs.id = posts.blog_id").
 		Preload("Files").
 		Preload("Likes").
 		Preload("Comments").
@@ -644,6 +643,7 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 		Preload("Comments").
 		Preload("User").
 		Preload("Tags").
+		Preload("Blog").
 		Order("created_at DESC")
 
 	tag := c.Query("tag")
