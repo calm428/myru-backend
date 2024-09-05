@@ -17,7 +17,8 @@ type Post struct {
 	Comments  []CommentPost `json:"comments"`
 	Files     []FilePost    `json:"files"`
 	Tags      []Tag         `gorm:"many2many:post_tags;" json:"tags"`
-
+	BlogID    *uint64       `gorm:"type:bigint" json:"blog_id"` // ссылка на блог, необязательное поле
+	Blog      *Blog         `gorm:"foreignKey:BlogID" json:"blog"` // отношение к блогу
 }
 
 type LikePost struct {

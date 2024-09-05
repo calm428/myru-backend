@@ -55,6 +55,19 @@ func CreatePost(c *fiber.Ctx) error {
 	post.UserID = userResponse.ID
 	post.Content = c.FormValue("content")
 
+	// Обработка связи с блогом (если передан blog_id)
+	blogID := c.FormValue("blog_id")
+	if blogID != "" {
+		var blog models.Blog
+		if err := initializers.DB.First(&blog, "id = ?", blogID).Error; err != nil {
+			log.Printf("Blog with id %s not found: %v", blogID, err)
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Blog not found",
+			})
+		}
+		post.BlogID = &blog.ID
+	}
+
 	// Обработка тегов
 	tagNames := c.FormValue("tags")
 	tags := []models.Tag{}
