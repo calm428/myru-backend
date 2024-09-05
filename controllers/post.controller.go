@@ -226,6 +226,7 @@ func GetUserPosts(c *fiber.Ctx) error {
 
 	var posts []models.Post
 	query := initializers.DB.Where("user_id = ?", userResponse.ID).
+		Joins("LEFT JOIN blogs ON blogs.id = posts.blog_id").
 		Preload("Files").
 		Preload("Likes").
 		Preload("Comments").
