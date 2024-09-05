@@ -292,7 +292,12 @@ func DeletePost(c *fiber.Ctx) error {
 		}
 	}
 
-	
+	// Удаление связей с тегами
+	if err := initializers.DB.Where("post_id = ?", postID).Delete(&models.PostTag{}).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to delete associated tags",
+		})
+	}	
 
 	// Удаление поста из базы данных
 	if err := initializers.DB.Delete(&post).Error; err != nil {
