@@ -229,6 +229,7 @@ func GetUserPosts(c *fiber.Ctx) error {
 		Preload("Files").
 		Preload("Likes").
 		Preload("Comments").
+		Preload("Blog").
 		Preload("Tags").
 		Order("created_at DESC")
 
