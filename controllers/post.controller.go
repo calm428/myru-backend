@@ -635,6 +635,12 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 		userIds = append(userIds, following.ID)
 	}
 
+	language := c.Query("language")
+
+	if language == "" {
+		language = "ru"
+	}
+	
 	// Получение постов всех пользователей по их ID
 	var posts []models.Post
 	query := initializers.DB.Where("user_id IN ?", userIds).
@@ -644,6 +650,10 @@ func GetUserAndFollowingsPosts(c *fiber.Ctx) error {
 		Preload("User").
 		Preload("Tags").
 		Preload("Blog").
+		Preload("Blog.Photos"). // Preload фотографий блога
+		Preload("Blog.Hashtags"). // Preload хэштегов блога
+		Preload("Blog.City.Translations", "language = ?", language). // Preload городов с переводами
+		Preload("Blog.Catygory.Translations", "language = ?", language). // Preload категорий с переводами
 		Order("created_at DESC")
 
 	tag := c.Query("tag")
