@@ -204,11 +204,8 @@ func main() {
 		BodyLimit:    20 * 1024 * 1024, // 20 MB
 	})
 
-	app.Static("/s", "/app/public/s")
-	app.Use(func(c *fiber.Ctx) error {
-		fmt.Printf("Request URL: %s\n", c.OriginalURL())
-		return c.Next()
-	})
+	app.Static("/", "./public")             // Раздача файлов из папки public
+
 	micro_paxcall.Static("/", "./public")
 
 	routes_paxcall.Register(micro_paxcall)
