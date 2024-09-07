@@ -4,6 +4,7 @@ WORKDIR /app
 
 RUN go install github.com/air-verse/air@latest
 RUN apk add --no-cache ffmpeg
+RUN apk --no-cache add curl
 
 COPY go.mod go.mod
 COPY go.sum go.sum
