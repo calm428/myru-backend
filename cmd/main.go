@@ -205,7 +205,10 @@ func main() {
 	})
 
 	app.Static("/s", "./public/s")
-
+	app.Use(func(c *fiber.Ctx) error {
+		fmt.Printf("Request URL: %s\n", c.OriginalURL())
+		return c.Next()
+	})
 	micro_paxcall.Static("/", "./public")
 
 	routes_paxcall.Register(micro_paxcall)
