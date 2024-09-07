@@ -204,6 +204,8 @@ func main() {
 		BodyLimit:    20 * 1024 * 1024, // 20 MB
 	})
 
+	app.Static("/s", "./public/s")
+
 	micro_paxcall.Static("/", "./public")
 
 	routes_paxcall.Register(micro_paxcall)
@@ -214,7 +216,6 @@ func main() {
 	routes.SwaggerRoute(app) // Register a route for API Docs (Swagger).
 	routes.MainView(app)     // Main page
 
-	app.Static("/", "./public")
 
 
 	//API'S
