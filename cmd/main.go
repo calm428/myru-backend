@@ -205,6 +205,7 @@ func main() {
 	})
 
 	micro_paxcall.Static("/", "./public")
+	app.Static("/s", "./public/s")
 
 	routes_paxcall.Register(micro_paxcall)
 
