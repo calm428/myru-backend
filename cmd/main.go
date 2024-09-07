@@ -205,7 +205,6 @@ func main() {
 	})
 
 	micro_paxcall.Static("/", "./public")
-	app.Static("/", "./public")
 
 	routes_paxcall.Register(micro_paxcall)
 
@@ -214,6 +213,9 @@ func main() {
 	//VIEWS
 	routes.SwaggerRoute(app) // Register a route for API Docs (Swagger).
 	routes.MainView(app)     // Main page
+
+	app.Static("/", "./public")
+
 
 	//API'S
 	api.Register(micro)
