@@ -189,15 +189,15 @@ func UpdateLang(c *fiber.Ctx) error {
 }
 
 func ProxyYouTube(c *fiber.Ctx) error {
-	// Извлекаем путь к YouTube
-	videoPath := c.Params("*")
-	if videoPath == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid video path",
-		})
-	}
+    // Извлекаем путь из query-параметра
+    videoPath := c.Query("path")
+    if videoPath == "" {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid video path",
+        })
+    }
 
-	// Проксируем запрос на YouTube
-	targetURL := "https://www.youtube.com/" + videoPath
-	return proxy.Do(c, targetURL)
+    // Проксируем запрос на YouTube через embed URL
+    targetURL := "https://www.youtube.com/embed/" + videoPath
+    return proxy.Do(c, targetURL)
 }
