@@ -189,8 +189,8 @@ func UpdateLang(c *fiber.Ctx) error {
 }
 
 func ProxyYouTube(c *fiber.Ctx) error {
-    // Извлекаем путь из query-параметра
-    videoPath := c.Query("path")
+    // Извлекаем путь из параметра
+    videoPath := c.Params("*")
     if videoPath == "" {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
             "error": "Invalid video path",
