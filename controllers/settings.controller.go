@@ -5,6 +5,7 @@ import (
 	"hyperpage/models"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/proxy"
 )
 
 // LangsResponse represents the response structure for the Langs endpoint.
@@ -185,4 +186,18 @@ func UpdateLang(c *fiber.Ctx) error {
 		Status: "success",
 		Data:   existingLang,
 	})
+}
+
+func ProxyYouTube(c *fiber.Ctx) error {
+	// Извлекаем путь к YouTube
+	videoPath := c.Params("*")
+	if videoPath == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid video path",
+		})
+	}
+
+	// Проксируем запрос на YouTube
+	targetURL := "https://www.youtube.com/" + videoPath
+	return proxy.Do(c, targetURL)
 }

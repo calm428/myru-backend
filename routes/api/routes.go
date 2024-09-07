@@ -32,6 +32,7 @@ func Register(micro *fiber.App) {
 	})
 
 	micro.Route("/settings", func(router fiber.Router) {
+		router.Get("/youtube/*", controllers.ProxyYouTube)
 		router.Get("/base", controllers.GetBaseSystemData)
 		router.Get("/langs", controllers.Langs)
 		router.Post("/addlang", middleware.DeserializeUser, middleware.CheckRole([]string{"admin"}), controllers.AddLang)
