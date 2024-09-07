@@ -1063,7 +1063,7 @@ func main() {
 		}
 	}))
 
-	routes.NotFoundRoute(app) // Register route for 404 Error.
+	// routes.NotFoundRoute(app) // Register route for 404 Error.
 
 	// uncomment for test reset .... witouth wait
 
