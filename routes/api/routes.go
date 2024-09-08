@@ -3,10 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
-	"net/url"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/proxy"
 	"github.com/redis/go-redis/v9"
 
 	"hyperpage/controllers"
@@ -40,40 +38,6 @@ func Register(micro *fiber.App) {
 		router.Post("/addlang", middleware.DeserializeUser, middleware.CheckRole([]string{"admin"}), controllers.AddLang)
 		router.Delete("/deletelang/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin"}), controllers.DeleteLang)
 		router.Patch("/updatelang/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin"}), controllers.UpdateLang)
-
-		// Добавляем прокси маршруты для динамического проксирования ресурсов
-		router.Get("/proxy", func(c *fiber.Ctx) error {
-			// Получаем параметр URL из query
-			targetUrl := c.Query("url")
-			if targetUrl == "" {
-				return c.Status(fiber.StatusBadRequest).SendString("URL is required")
-			}
-		
-			c.Request().Header.Del(fiber.HeaderXForwardedFor)
-
-			
-			err := proxy.Do(c, targetUrl) // Проксируем запрос
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).SendString("Ошибка проксирования: " + err.Error())
-			}
-			return nil
-		})
-	
-		// Проксирование ресурсов (CSS, JS, изображения и т.д.)
-		router.Get("/proxy_resource/*", func(c *fiber.Ctx) error {
-			// Декодируем URL
-			targetUrl, err := url.QueryUnescape(c.Params("*"))
-			if err != nil {
-				return c.Status(fiber.StatusBadRequest).SendString("Invalid URL")
-			}
-		
-			// Проксируем запрос на декодированный URL
-			err = proxy.Do(c, targetUrl)
-			if err != nil {
-				return c.Status(fiber.StatusInternalServerError).SendString("Ошибка проксирования ресурса: " + err.Error())
-			}
-			return nil
-		})
 	})
 
 	micro.Route("/presavedfilter", func(router fiber.Router) {
