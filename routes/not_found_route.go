@@ -1,24 +1,18 @@
 package routes
 
-import (
-	"strings"
-
-	"github.com/gofiber/fiber/v2"
-)
+import "github.com/gofiber/fiber/v2"
 
 // NotFoundRoute func for describe 404 Error route.
-
-func NotFoundRoute(app *fiber.App) {
-    app.Use(func(c *fiber.Ctx) error {
-        // Проверяем, относится ли запрос к статическим файлам
-        if strings.HasPrefix(c.Path(), "/s/") || strings.HasPrefix(c.Path(), "/public/") {
-            return c.Next() // Пропускаем обработку, если это статика
-        }
-
-        // Если это не статика, возвращаем 404
-        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-            "error": true,
-            "msg":   "sorry, endpoint is not found",
-        })
-    })
+func NotFoundRoute(a *fiber.App) {
+	// Register new special route.
+	a.Use(
+		// Anonimus function.
+		func(c *fiber.Ctx) error {
+			// Return HTTP 404 status and JSON response.
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": true,
+				"msg":   "sorry, endpoint is not found",
+			})
+		},
+	)
 }
