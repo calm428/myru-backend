@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/proxy"
@@ -57,8 +58,14 @@ func Register(micro *fiber.App) {
 	
 		// Проксирование ресурсов (CSS, JS, изображения и т.д.)
 		router.Get("/proxy_resource/*", func(c *fiber.Ctx) error {
-			targetUrl := "https://" + c.Params("*") // Конструируем целевой URL для ресурсов
-			err := proxy.Do(c, targetUrl)           // Прокси запроса
+			// Декодируем URL
+			targetUrl, err := url.QueryUnescape(c.Params("*"))
+			if err != nil {
+				return c.Status(fiber.StatusBadRequest).SendString("Invalid URL")
+			}
+		
+			// Проксируем запрос на декодированный URL
+			err = proxy.Do(c, targetUrl)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString("Ошибка проксирования ресурса: " + err.Error())
 			}
