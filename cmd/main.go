@@ -5,7 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +96,52 @@ func init() {
 	initializers.ConnectTelegram(&config)
 }
 
+func handleProxy(w http.ResponseWriter, r *http.Request) {
+    // Извлекаем целевой URL из параметров запроса
+    target := r.URL.Query().Get("url")
+    if target == "" {
+        http.Error(w, "URL параметр отсутствует", http.StatusBadRequest)
+        return
+    }
+
+    // Парсим целевой URL
+    targetURL, err := url.Parse(target)
+    if err != nil {
+        http.Error(w, "Неверный URL", http.StatusBadRequest)
+        return
+    }
+
+    // Создаем новый запрос к целевому сайту
+    proxyReq, err := http.NewRequest(r.Method, targetURL.String(), r.Body)
+    if err != nil {
+        http.Error(w, "Ошибка создания запроса", http.StatusInternalServerError)
+        return
+    }
+
+    // Копируем заголовки исходного запроса
+    proxyReq.Header = r.Header
+
+    // Выполняем запрос к целевому сайту
+    client := &http.Client{}
+    resp, err := client.Do(proxyReq)
+    if err != nil {
+        http.Error(w, "Ошибка при запросе к целевому ресурсу", http.StatusInternalServerError)
+        return
+    }
+    defer resp.Body.Close()
+
+    // Копируем заголовки ответа
+    for name, values := range resp.Header {
+        for _, value := range values {
+            w.Header().Set(name, value)
+        }
+    }
+
+    // Отправляем статус ответа и тело обратно клиенту
+    w.WriteHeader(resp.StatusCode)
+    io.Copy(w, resp.Body)
+}
+
 // @title Paxintrade core api
 // @version 1.0
 // @description services paxintrade
@@ -104,6 +153,7 @@ func init() {
 func main() {
 	configPath := "./app.env"
 	config, _ := initializers.LoadConfig(configPath)
+    http.HandleFunc("/test", handleProxy)
 
 	// url := "https://api.development.push.apple.com/3/device/5334f3e850f3e06f5e3714344e4f6c5358751829290a64e65ed3afdeec085d1c"
 
