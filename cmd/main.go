@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -96,50 +97,52 @@ func init() {
 	initializers.ConnectTelegram(&config)
 }
 
-func handleProxy(w http.ResponseWriter, r *http.Request) {
-    // Извлекаем целевой URL из параметров запроса
-    target := r.URL.Query().Get("url")
-    if target == "" {
-        http.Error(w, "URL параметр отсутствует", http.StatusBadRequest)
-        return
-    }
+func handleProxy(c *fiber.Ctx) error {
+	// Извлекаем целевой URL из параметров запроса
+	target := c.Query("url")
+	if target == "" {
+		return c.Status(fiber.StatusBadRequest).SendString("URL параметр отсутствует")
+	}
 
-    // Парсим целевой URL
-    targetURL, err := url.Parse(target)
-    if err != nil {
-        http.Error(w, "Неверный URL", http.StatusBadRequest)
-        return
-    }
+	// Парсим целевой URL
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Неверный URL")
+	}
 
-    // Создаем новый запрос к целевому сайту
-    proxyReq, err := http.NewRequest(r.Method, targetURL.String(), r.Body)
-    if err != nil {
-        http.Error(w, "Ошибка создания запроса", http.StatusInternalServerError)
-        return
-    }
+	// Создаем новый запрос к целевому сайту
+	body := bytes.NewReader(c.Body()) // Преобразуем []byte в io.Reader
+	proxyReq, err := http.NewRequest(c.Method(), targetURL.String(), body)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Ошибка создания запроса")
+	}
 
-    // Копируем заголовки исходного запроса
-    proxyReq.Header = r.Header
+	// Копируем заголовки исходного запроса
+	proxyReq.Header = http.Header(c.GetReqHeaders())
 
-    // Выполняем запрос к целевому сайту
-    client := &http.Client{}
-    resp, err := client.Do(proxyReq)
-    if err != nil {
-        http.Error(w, "Ошибка при запросе к целевому ресурсу", http.StatusInternalServerError)
-        return
-    }
-    defer resp.Body.Close()
+	// Выполняем запрос к целевому сайту
+	client := &http.Client{}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Ошибка при запросе к целевому ресурсу")
+	}
+	defer resp.Body.Close()
 
-    // Копируем заголовки ответа
-    for name, values := range resp.Header {
-        for _, value := range values {
-            w.Header().Set(name, value)
-        }
-    }
+	// Копируем заголовки ответа
+	for name, values := range resp.Header {
+		for _, value := range values {
+			c.Set(name, value)
+		}
+	}
 
-    // Отправляем статус ответа и тело обратно клиенту
-    w.WriteHeader(resp.StatusCode)
-    io.Copy(w, resp.Body)
+	// Отправляем статус ответа и тело обратно клиенту
+	c.Status(resp.StatusCode)
+	_, err = io.Copy(c.Response().BodyWriter(), resp.Body)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Ошибка при отправке ответа")
+	}
+
+	return nil
 }
 
 // @title Paxintrade core api
@@ -153,7 +156,6 @@ func handleProxy(w http.ResponseWriter, r *http.Request) {
 func main() {
 	configPath := "./app.env"
 	config, _ := initializers.LoadConfig(configPath)
-    http.HandleFunc("/test", handleProxy)
 
 	// url := "https://api.development.push.apple.com/3/device/5334f3e850f3e06f5e3714344e4f6c5358751829290a64e65ed3afdeec085d1c"
 
@@ -254,6 +256,9 @@ func main() {
 		BodyLimit:    20 * 1024 * 1024, // 20 MB
 	})
 
+	app.Get("/test", handleProxy)
+
+	
 	app.Static("/", "./public")             // Раздача файлов из папки public
 
 	micro_paxcall.Static("/", "./public")
