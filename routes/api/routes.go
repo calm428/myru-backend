@@ -41,9 +41,14 @@ func Register(micro *fiber.App) {
 		router.Patch("/updatelang/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin"}), controllers.UpdateLang)
 
 		// Добавляем прокси маршруты для динамического проксирования ресурсов
-		router.Get("/proxy/*", func(c *fiber.Ctx) error {
-			targetUrl := "https://" + c.Params("*") // Конструируем целевой URL для страницы
-			err := proxy.Do(c, targetUrl)           // Прокси запроса
+		router.Get("/proxy", func(c *fiber.Ctx) error {
+			// Получаем параметр URL из query
+			targetUrl := c.Query("url")
+			if targetUrl == "" {
+				return c.Status(fiber.StatusBadRequest).SendString("URL is required")
+			}
+		
+			err := proxy.Do(c, targetUrl) // Проксируем запрос
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString("Ошибка проксирования: " + err.Error())
 			}
