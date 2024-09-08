@@ -49,6 +49,9 @@ func Register(micro *fiber.App) {
 				return c.Status(fiber.StatusBadRequest).SendString("URL is required")
 			}
 		
+			c.Request().Header.Del(fiber.HeaderXForwardedFor)
+
+			
 			err := proxy.Do(c, targetUrl) // Проксируем запрос
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).SendString("Ошибка проксирования: " + err.Error())
