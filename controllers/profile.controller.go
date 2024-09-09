@@ -183,10 +183,9 @@ func GetProfiles(c *fiber.Ctx) error {
 }
 
 func GetAllProfile(c *fiber.Ctx) error {
-
 	language := c.Query("language")
-
 	var profiles []models.Profile
+
 	query := initializers.DB.
 		Preload("Guilds.Translations", "language = ?", language).
 		Preload("Hashtags").
@@ -198,83 +197,94 @@ func GetAllProfile(c *fiber.Ctx) error {
 		Joins("JOIN users ON profiles.user_id = users.id").
 		Order("Users.name ASC").
 		Where("Users.filled = ?", true)
-	// Get the query parameters
+
+	// Получаем параметры запроса
 	city := c.Query("city")
 	hashtags := c.Query("hashtag")
 	category := c.Query("category")
 	title := c.Query("title")
 	money := c.Query("money")
 
+	// Обработка диапазона по алфавиту
 	if money != "" && money != "all" {
 		if strings.Contains(money, "-") {
 			alphabeticRange := strings.Split(money, "-")
 			if len(alphabeticRange) != 2 {
 				return fmt.Errorf("invalid alphabetic range format")
 			}
-
 			lowerAlpha := strings.TrimSpace(alphabeticRange[0])
 			upperAlpha := strings.TrimSpace(alphabeticRange[1])
 			query = query.Where("(LOWER(SUBSTR(Firstname, 1, 1)) >= ? AND LOWER(SUBSTR(Firstname, 1, 1)) <= ?) AND (LOWER(SUBSTR(Lastname, 1, 1)) >= ? AND LOWER(SUBSTR(Lastname, 1, 1)) <= ?)", lowerAlpha, upperAlpha, lowerAlpha, upperAlpha)
-
 		} else {
 			alphabeticRange := strings.Split(money, "-")
-
 			lowerAlpha := strings.TrimSpace(alphabeticRange[0])
-
 			query = query.Where("LOWER(SUBSTR(Firstname, 1, 1)) = ?", lowerAlpha)
 		}
 	}
 
+	// Обработка фильтра по нескольким городам
 	if city != "" && city != "all" {
-		// Сначала найдем city_id для указанного города и языка
-		var cityTranslation models.CityTranslation
-		initializers.DB.Where("name = ? AND language = ?", city, language).First(&cityTranslation)
+		cityNames := strings.Split(city, ",")
+		for i := range cityNames {
+			cityNames[i] = strings.TrimSpace(cityNames[i]) // Удаляем лишние пробелы
+		}
+		var cityTranslations []models.CityTranslation
+		initializers.DB.Where("name IN (?) AND language = ?", cityNames, language).Find(&cityTranslations)
 
-		if cityTranslation.ID != 0 {
+		if len(cityTranslations) > 0 {
+			cityIDs := make([]uint, len(cityTranslations))
+			for i, ct := range cityTranslations {
+				cityIDs[i] = ct.CityID
+			}
 			subQuery := initializers.DB.Table("profiles_city").
 				Select("profile_id").
-				Where("city_id = ?", cityTranslation.CityID)
+				Where("city_id IN (?)", cityIDs)
 
-			// Добавим условие, чтобы ваш основной запрос включал только записи с blog_id из подзапроса
-			query = query.Where("profiles.id IN (?)", subQuery) // Specify the table alias for "blogs.id"
-		}
-	}
-
-	if title != "" && title != "all" {
-		query = query.Where("LOWER(Descr) LIKE ?", "%"+title+"%")
-	}
-
-	if category != "" && category != "all" {
-		var guildTranslation models.GuildTranslation
-		initializers.DB.Where("name = ? AND language = ?", category, language).First(&guildTranslation)
-		if guildTranslation.ID != 0 {
-			// Создадим подзапрос для поиска всех blog_id, связанных с указанным guild_id
-			subQuery := initializers.DB.Table("profiles_guilds").
-				Select("profile_id").
-				Where("guilds_id = ?", guildTranslation.GuildID)
-
-			// Добавим условие, чтобы ваш основной запрос включил только записи с blog_id из подзапроса
 			query = query.Where("profiles.id IN (?)", subQuery)
 		}
 	}
 
-	if hashtags != "" && hashtags != "all" {
-		// Split the hashtags into separate values
-		hashtagValues := strings.Split(hashtags, ",")
+	// Обработка фильтра по нескольким категориям
+	if category != "" && category != "all" {
+		categoryNames := strings.Split(category, ",")
+		for i := range categoryNames {
+			categoryNames[i] = strings.TrimSpace(categoryNames[i]) // Удаляем лишние пробелы
+		}
+		var guildTranslations []models.GuildTranslation
+		initializers.DB.Where("name IN (?) AND language = ?", categoryNames, language).Find(&guildTranslations)
 
-		// Join the hashtag values with the '#' character
+		if len(guildTranslations) > 0 {
+			guildIDs := make([]uint, len(guildTranslations))
+			for i, gt := range guildTranslations {
+				guildIDs[i] = gt.GuildID
+			}
+			subQuery := initializers.DB.Table("profiles_guilds").
+				Select("profile_id").
+				Where("guilds_id IN (?)", guildIDs)
+
+			query = query.Where("profiles.id IN (?)", subQuery)
+		}
+	}
+
+	// Фильтр по заголовку (описанию)
+	if title != "" && title != "all" {
+		query = query.Where("LOWER(Descr) LIKE ?", "%"+title+"%")
+	}
+
+	// Фильтр по хэштегам
+	if hashtags != "" && hashtags != "all" {
+		hashtagValues := strings.Split(hashtags, ",")
 		hashtagValuesWithPrefix := make([]string, len(hashtagValues))
 		for i, tag := range hashtagValues {
 			hashtagValuesWithPrefix[i] = strings.TrimSpace(tag)
 		}
 
-		// Add the hashtags filter to the query
 		query = query.Joins("JOIN profiles_hashtags ON profiles.id = profiles_hashtags.profile_id").
 			Joins("JOIN hashtags_for_profiles ON profiles_hashtags.hashtags_for_profile_id = hashtags_for_profiles.id").
 			Where("hashtags_for_profiles.hashtag IN (?)", hashtagValuesWithPrefix)
-
 	}
 
+	// Подсчёт количества профилей
 	var count int64
 	if err := query.Model(&models.Profile{}).Count(&count).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -283,6 +293,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		})
 	}
 
+	// Лимит и пагинация
 	limit := c.Query("limit", "10")
 	limitInt, err := strconv.Atoi(limit)
 	if err != nil {
@@ -305,8 +316,8 @@ func GetAllProfile(c *fiber.Ctx) error {
 			"limit": limitInt,
 		},
 	})
-
 }
+
 
 func GetProfile(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.UserResponse)
