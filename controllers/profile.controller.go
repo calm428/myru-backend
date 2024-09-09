@@ -310,11 +310,8 @@ func GetAllProfile(c *fiber.Ctx) error {
 
 	// Инициализируем переменные для токена и авторизации
 	var access_token string
-	authorization := c.Get("Authorization")
-
-	if strings.HasPrefix(authorization, "Bearer ") {
-		access_token = strings.TrimPrefix(authorization, "Bearer ")
-	} else if c.Cookies("access_token") != "" {
+	
+	if c.Cookies("access_token") != "" {
 		access_token = c.Cookies("access_token")
 	}
 
