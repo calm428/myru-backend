@@ -182,18 +182,6 @@ func GetProfiles(c *fiber.Ctx) error {
 
 }
 
-func GetFollowersTwo(userID uuid.UUID) ([]models.User, error) {
-	var followers []models.User
-
-	subQuery := initializers.DB.Table("user_relation").Select("user_id").Where("following_id = ?", userID)
-
-	if err := initializers.DB.Table("users").Where("id IN (?)", subQuery).Find(&followers).Error; err != nil {
-		return nil, err
-	}
-
-	return followers, nil
-}
-
 func GetAllProfile(c *fiber.Ctx) error {
 	language := c.Query("language")
 	var profiles []models.Profile
@@ -320,78 +308,9 @@ func GetAllProfile(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Инициализируем переменные для токена и авторизации
-	var access_token string
-	authorization := c.Get("Authorization")
-
-	if strings.HasPrefix(authorization, "Bearer ") {
-		access_token = strings.TrimPrefix(authorization, "Bearer ")
-	} else if c.Cookies("access_token") != "" {
-		access_token = c.Cookies("access_token")
-	}
-
-	config, _ := initializers.LoadConfig(".")
-
-	// Структура для ответа с полем canFollow
-	type ProfileWithExtras struct {
-		models.Profile
-		CanFollow bool `json:"canFollow"`
-	}
-
-	var profilesWithExtras []ProfileWithExtras
-
-	// Добавляем возможность подписки для каждого профиля
-	if access_token != "" && access_token != "undefined" {
-		tokenClaims, err := utils.ValidateToken(access_token, config.AccessTokenPublicKey)
-		if err != nil {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "fail", "message": err.Error()})
-		}
-
-		for _, profile := range profiles {
-			profileIDString := profile.UserID.String()
-			canFollow := true
-
-			// Если ID пользователя из токена совпадает с ID профиля, подписаться нельзя
-			if tokenClaims.UserID == profileIDString {
-				canFollow = false
-			} else {
-				// Получаем список подписчиков (followers) профиля
-				followers, err := GetFollowersTwo(profile.UserID)
-				if err != nil {
-					return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-						"status":  "error",
-						"message": "Failed to retrieve followers",
-					})
-				}
-
-				// Проверяем, подписан ли текущий пользователь среди подписчиков
-				for _, follower := range followers {
-					if follower.ID.String() == tokenClaims.UserID {
-						canFollow = false
-						break
-					}
-				}
-			}
-
-			// Добавляем профиль в новый список с полем canFollow
-			profilesWithExtras = append(profilesWithExtras, ProfileWithExtras{
-				Profile:   profile,
-				CanFollow: canFollow,
-			})
-		}
-	} else {
-		// Если токена нет, просто копируем профили без проверки подписки
-		for _, profile := range profiles {
-			profilesWithExtras = append(profilesWithExtras, ProfileWithExtras{
-				Profile:   profile,
-				CanFollow: false,
-			})
-		}
-	}
-
 	return c.JSON(fiber.Map{
 		"status": "success",
-		"data":   profilesWithExtras,
+		"data":   profiles,
 		"meta": fiber.Map{
 			"total": count,
 			"limit": limitInt,
