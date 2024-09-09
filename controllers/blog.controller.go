@@ -1685,269 +1685,249 @@ func DeleteBlog(c *fiber.Ctx) error {
 
 // }
 func GetAll(c *fiber.Ctx) error {
-	var blogs []models.Blog
-	language := c.Query("language")
+    var blogs []models.Blog
+    language := c.Query("language")
 
-	if language == "" {
-		language = "en"
-	}
+    if language == "" {
+        language = "en"
+    }
 
-	query := initializers.DB.Order("created_at DESC").
-		Preload("Catygory.Translations", "language = ?", language).
-		Preload("City.Translations", "language = ?", language).
-		Preload("Hashtags").
-		Preload("Photos").
-		Preload("User").
-		Where("status = ?", "ACTIVE")
+    query := initializers.DB.Order("created_at DESC").
+        Preload("Catygory.Translations", "language = ?", language).
+        Preload("City.Translations", "language = ?", language).
+        Preload("Hashtags").
+        Preload("Photos").
+        Preload("User").
+        Where("status = ?", "ACTIVE")
 
-	// Get the query parameters
-	city := c.Query("city")
-	skip := c.Query("skip")
-	money := c.Query("money")
-	title := c.Query("title")
-	hashtags := c.Query("hashtag")
-	category := c.Query("category")
+    // Get the query parameters
+    city := c.Query("city")
+    skip := c.Query("skip")
+    money := c.Query("money")
+    title := c.Query("title")
+    hashtags := c.Query("hashtag")
+    category := c.Query("category")
 
-	if hashtags != "" && hashtags != "all" {
-		// Split the hashtags into separate values
-		hashtagValues := strings.Split(hashtags, ",")
+    // Фильтр по хэштегам
+    if hashtags != "" && hashtags != "all" {
+        hashtagValues := strings.Split(hashtags, ",")
+        hashtagValuesWithPrefix := make([]string, len(hashtagValues))
+        for i, tag := range hashtagValues {
+            hashtagValuesWithPrefix[i] = strings.TrimSpace(tag)
+        }
 
-		// Join the hashtag values with the '#' character
-		hashtagValuesWithPrefix := make([]string, len(hashtagValues))
-		for i, tag := range hashtagValues {
-			hashtagValuesWithPrefix[i] = strings.TrimSpace(tag)
-		}
+        query = query.Joins("JOIN blog_hashtags bh ON blogs.id = bh.blog_id").
+            Joins("JOIN hashtags h ON bh.hashtags_id = h.id").
+            Where("h.hashtag IN (?)", hashtagValuesWithPrefix)
+    }
 
-		// Add the hashtags filter to the query
-		query = query.Joins("JOIN blog_hashtags bh ON blogs.id = bh.blog_id").
-			Joins("JOIN hashtags h ON bh.hashtags_id = h.id").
-			Where("h.hashtag IN (?)", hashtagValuesWithPrefix)
-	}
+    // Фильтр по нескольким городам
+    if city != "" && city != "all" {
+        cityNames := strings.Split(city, ",")
+        for i := range cityNames {
+            cityNames[i] = strings.TrimSpace(cityNames[i]) // Удалить лишние пробелы
+        }
 
-	if city != "" && city != "all" {
-		// Сначала найдем city_id для указанного города и языка
-		var cityTranslation models.CityTranslation
-		initializers.DB.Where("name = ? AND language = ?", city, language).First(&cityTranslation)
+        var cityTranslations []models.CityTranslation
+        initializers.DB.Where("name IN (?) AND language = ?", cityNames, language).Find(&cityTranslations)
 
-		if cityTranslation.ID != 0 {
-			// Создадим подзапрос для поиска всех blog_id, связанных с указанным city_id
-			subQuery := initializers.DB.Table("blog_city").
-				Select("blog_id").
-				Where("city_id = ?", cityTranslation.CityID)
+        if len(cityTranslations) > 0 {
+            cityIDs := make([]uint, len(cityTranslations))
+            for i, ct := range cityTranslations {
+                cityIDs[i] = ct.CityID
+            }
 
-			// Добавим условие, чтобы ваш основной запрос включал только записи с blog_id из подзапроса
-			query = query.Where("blogs.id IN (?)", subQuery) // Specify the table alias for "blogs.id"
-		}
-	}
+            subQuery := initializers.DB.Table("blog_city").
+                Select("blog_id").
+                Where("city_id IN (?)", cityIDs)
 
-	if category != "" && category != "all" {
-		var guildTranslation models.GuildTranslation
-		initializers.DB.Where("name = ? AND language = ?", category, language).First(&guildTranslation)
-		if guildTranslation.ID != 0 {
-			// Создадим подзапрос для поиска всех blog_id, связанных с указанным guild_id
-			subQuery := initializers.DB.Table("blog_guilds").
-				Select("blog_id").
-				Where("guilds_id = ?", guildTranslation.GuildID)
+            query = query.Where("blogs.id IN (?)", subQuery)
+        }
+    }
 
-			// Добавим условие, чтобы ваш основной запрос включил только записи с blog_id из подзапроса
-			query = query.Where("blogs.id IN (?)", subQuery)
-		}
-	}
+    // Фильтр по категории
+    if category != "" && category != "all" {
+        var guildTranslation models.GuildTranslation
+        initializers.DB.Where("name = ? AND language = ?", category, language).First(&guildTranslation)
+        if guildTranslation.ID != 0 {
+            subQuery := initializers.DB.Table("blog_guilds").
+                Select("blog_id").
+                Where("guilds_id = ?", guildTranslation.GuildID)
+            query = query.Where("blogs.id IN (?)", subQuery)
+        }
+    }
 
-	if title != "" && title != "all" {
-		query = query.Where("LOWER(title) LIKE ?", "%"+title+"%")
-	}
-	if money != "" && money != "all" {
-		if strings.Contains(money, "-") {
-			totalRange := strings.Split(money, "-")
-			if len(totalRange) != 2 {
-				return fmt.Errorf("invalid total range format: %w", fmt.Errorf("length of totalRange is not 2"))
-			}
+    // Фильтр по заголовку
+    if title != "" && title != "all" {
+        query = query.Where("LOWER(title) LIKE ?", "%"+title+"%")
+    }
 
-			lowerTotal, err := strconv.Atoi(strings.TrimSpace(totalRange[0]))
-			if err != nil {
-				return err
-			}
+    // Фильтр по деньгам
+    if money != "" && money != "all" {
+        if strings.Contains(money, "-") {
+            totalRange := strings.Split(money, "-")
+            if len(totalRange) != 2 {
+                return fmt.Errorf("invalid total range format: %w", fmt.Errorf("length of totalRange is not 2"))
+            }
 
-			upperTotal, err := strconv.Atoi(strings.TrimSpace(totalRange[1]))
-			if err != nil {
-				return err
-			}
+            lowerTotal, err := strconv.Atoi(strings.TrimSpace(totalRange[0]))
+            if err != nil {
+                return err
+            }
 
-			query = query.Where("total >= ? AND total <= ?", lowerTotal, upperTotal)
-		} else {
-			totalInt, err := strconv.Atoi(money)
-			if err != nil {
-				return err
-			}
-			query = query.Where("total >= ?", totalInt)
-		}
-	}
+            upperTotal, err := strconv.Atoi(strings.TrimSpace(totalRange[1]))
+            if err != nil {
+                return err
+            }
 
-	var count int64
-	if err := query.Model(&models.Blog{}).Count(&count).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Could not retrieve data",
-		})
-	}
+            query = query.Where("total >= ? AND total <= ?", lowerTotal, upperTotal)
+        } else {
+            totalInt, err := strconv.Atoi(money)
+            if err != nil {
+                return err
+            }
+            query = query.Where("total >= ?", totalInt)
+        }
+    }
 
-	if skip != "" {
-		skipInt, err := strconv.Atoi(skip)
-		if err != nil {
-			return err
-		}
+    var count int64
+    if err := query.Model(&models.Blog{}).Count(&count).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Could not retrieve data",
+        })
+    }
 
-		if skipInt >= int(count) {
-			skipInt = 0
-		}
+    if skip != "" {
+        skipInt, err := strconv.Atoi(skip)
+        if err != nil {
+            return err
+        }
 
-		query = query.Offset(skipInt)
-	}
+        if skipInt >= int(count) {
+            skipInt = 0
+        }
 
-	limit := c.Query("limit", "10")
-	limitInt, err := strconv.Atoi(limit)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Invalid limit parameter",
-		})
-	}
+        query = query.Offset(skipInt)
+    }
 
-	query = query.Limit(limitInt)
+    limit := c.Query("limit", "10")
+    limitInt, err := strconv.Atoi(limit)
+    if err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Invalid limit parameter",
+        })
+    }
 
-	err = query.Find(&blogs).Error
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Could not retrieve data",
-		})
-	}
+    query = query.Limit(limitInt)
 
-	var res []*blogResponse
-	for _, b := range blogs {
-		// b.Views++
-		// // Save the changes
-		// if err := initializers.DB.Save(&b).Error; err != nil {
-		// 	return err
-		// }
-		hashtags := make([]string, len(b.Hashtags))
-		for i, tag := range b.Hashtags {
-			hashtags[i] = tag.Hashtag
-		}
+    err = query.Find(&blogs).Error
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Could not retrieve data",
+        })
+    }
 
-		userOnlineHours := make(TimeEntryScanner, len(b.User.OnlineHours))
-		for i, entry := range b.User.OnlineHours {
-			userOnlineHours[i] = TimeEntry{
-				Hour:    entry.Hour,
-				Minutes: entry.Minutes,
-				Seconds: entry.Seconds,
-			}
-		}
+    var res []*blogResponse
+    for _, b := range blogs {
+        hashtags := make([]string, len(b.Hashtags))
+        for i, tag := range b.Hashtags {
+            hashtags[i] = tag.Hashtag
+        }
 
-		userTotalOnlineHours := make(TimeEntryScanner, len(b.User.TotalOnlineHours))
-		for i, entry := range b.User.TotalOnlineHours {
-			userTotalOnlineHours[i] = TimeEntry{
-				Hour:    entry.Hour,
-				Minutes: entry.Minutes,
-				Seconds: entry.Seconds,
-			}
-		}
+        cities := make([]CityJSON, len(b.City))
+        for i, city := range b.City {
+            cityJSON := CityJSON{
+                ID: city.ID,
+            }
+            if len(city.Translations) > 0 {
+                cityJSON.Name = city.Translations[0].Name
+            } else {
+                cityJSON.Name = "No translation available"
+            }
+            cities[i] = cityJSON
+        }
 
-		cities := make([]CityJSON, len(b.City))
-		for i, city := range b.City {
-			cityJSON := CityJSON{
-				ID: city.ID,
-			}
-			if len(city.Translations) > 0 {
-				cityJSON.Name = city.Translations[0].Name
-			} else {
-				cityJSON.Name = "No translation available"
-			}
-			cities[i] = cityJSON
-		}
+        categories := make([]CategoryJSON, len(b.Catygory))
+        for i, category := range b.Catygory {
+            categoryJSON := CategoryJSON{
+                ID: category.ID,
+            }
+            if len(category.Translations) > 0 {
+                categoryJSON.Name = category.Translations[0].Name
+            } else {
+                categoryJSON.Name = "No translation available"
+            }
+            categories[i] = categoryJSON
+        }
 
-		categories := make([]CategoryJSON, len(b.Catygory))
-		for i, category := range b.Catygory {
-			categoryJSON := CategoryJSON{
-				ID: category.ID,
-			}
-			if len(category.Translations) > 0 {
-				categoryJSON.Name = category.Translations[0].Name
-			} else {
-				categoryJSON.Name = "No translation available"
-			}
-			categories[i] = categoryJSON
-		}
+        var telegramNameVal string
+        if b.User.TelegramName != nil {
+            telegramNameVal = *b.User.TelegramName
+        } else {
+            telegramNameVal = ""
+        }
 
-		var telegramNameVal string
-		if b.User.TelegramName != nil {
-			telegramNameVal = *b.User.TelegramName
-		} else {
-			telegramNameVal = ""
-		}
+        blogRes := &blogResponse{
+            ID:             b.ID,
+            Title:          b.Title,
+            MultilangTitle: b.MultilangTitle,
+            MultilangDescr: b.MultilangDescr,
+            Lang:           b.Lang,
+            Descr:          b.Descr,
+            Slug:           b.Slug,
+            Status:         b.Status,
+            Total:          b.Total,
+            Content:        b.Content,
+            City:           cities,
+            UserAvatar:     b.UserAvatar,
+            Views:          b.Views,
+            Photos:         b.Photos,
+            CreatedAt:      b.CreatedAt,
+            UpdatedAt:      b.UpdatedAt,
+            Pined:          b.Pined,
+            Catygory:       categories,
+            UniqId:         b.UniqId,
+            Sticker:        b.Sticker,
+            User: userResponse{
+                TId:               b.User.Tid,
+                Online:            b.User.Online,
+                Photo:             b.User.Photo,
+                Name:              b.User.Name,
+                TotalBlogs:        b.User.TotalBlogs,
+                Role:              b.User.Role,
+                TelegramName:      telegramNameVal,
+                TelegramActivated: b.User.TelegramActivated,
+                IsBot:             b.User.IsBot,
+            },
+            Hashtags: hashtags,
+        }
+        res = append(res, blogRes)
+    }
 
-		blogRes := &blogResponse{
-			ID:             b.ID,
-			Title:          b.Title,
-			MultilangTitle: b.MultilangTitle,
-			MultilangDescr: b.MultilangDescr,
-			Lang:           b.Lang,
-			Descr:          b.Descr,
-			Slug:           b.Slug,
-			Status:         b.Status,
-			Total:          b.Total,
-			Content:        b.Content,
-			City:           cities,
-			UserAvatar:     b.UserAvatar,
-			Views:          b.Views,
-			Photos:         b.Photos,
-			CreatedAt:      b.CreatedAt,
-			UpdatedAt:      b.UpdatedAt,
-			Pined:          b.Pined,
-			Catygory:       categories,
-			UniqId:         b.UniqId,
-			Sticker:        b.Sticker,
-			User: userResponse{
-				TId:               b.User.Tid,
-				Online:            b.User.Online,
-				Photo:             b.User.Photo,
-				Name:              b.User.Name,
-				TotalBlogs:        b.User.TotalBlogs,
-				Role:              b.User.Role,
-				OnlineHours:       userOnlineHours,
-				TotalOnlineHours:  userTotalOnlineHours,
-				TotalRestBlogs:    b.User.TotalRestBlogs,
-				TelegramName:      telegramNameVal,
-				TelegramActivated: b.User.TelegramActivated,
-				IsBot:             b.User.IsBot,
-			},
-			Hashtags: hashtags,
-		}
-		res = append(res, blogRes)
-	}
+    if len(blogs) == 0 {
+        return c.JSON(fiber.Map{
+            "status": "success",
+            "data":   []models.Blog{},
+            "meta": fiber.Map{
+                "total": count,
+                "limit": limitInt,
+                "skip":  skip,
+            },
+        })
+    }
 
-	if len(blogs) == 0 {
-		return c.JSON(fiber.Map{
-			"status": "success",
-			"data":   []models.Blog{},
-			"meta": fiber.Map{
-				"total": count,
-				"limit": limitInt,
-				"skip":  skip,
-			},
-		})
-	}
-
-	return c.JSON(fiber.Map{
-		"status": "success",
-		"data":   res,
-		"meta": fiber.Map{
-			"total": count,
-			"limit": limitInt,
-			"skip":  skip,
-		},
-	})
+    return c.JSON(fiber.Map{
+        "status": "success",
+        "data":   res,
+        "meta": fiber.Map{
+            "total": count,
+            "limit": limitInt,
+            "skip":  skip,
+        },
+    })
 }
 
 func GetRandom(c *fiber.Ctx) error {
@@ -2110,9 +2090,7 @@ func GetAllByUser(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
-
 }
 
 func UpdateBlog(c *fiber.Ctx) error {
