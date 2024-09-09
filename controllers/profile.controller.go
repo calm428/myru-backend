@@ -308,15 +308,74 @@ func GetAllProfile(c *fiber.Ctx) error {
 		return err
 	}
 
+	// Инициализируем переменные для токена и авторизации
+	var access_token string
+	authorization := c.Get("Authorization")
+
+	if strings.HasPrefix(authorization, "Bearer ") {
+		access_token = strings.TrimPrefix(authorization, "Bearer ")
+	} else if c.Cookies("access_token") != "" {
+		access_token = c.Cookies("access_token")
+	}
+
+	config, _ := initializers.LoadConfig(".")
+
+	// Структура для ответа с полем canFollow
+	type ProfileWithExtras struct {
+		models.Profile
+		CanFollow bool `json:"canFollow"`
+	}
+
+	var profilesWithExtras []ProfileWithExtras
+
+	// Добавляем возможность подписки для каждого профиля
+	if access_token != "" && access_token != "undefined" {
+		tokenClaims, err := utils.ValidateToken(access_token, config.AccessTokenPublicKey)
+		if err != nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "fail", "message": err.Error()})
+		}
+
+		for _, profile := range profiles {
+			profileIDString := profile.UserID.String()
+
+			canFollow := true
+			if tokenClaims.UserID != "" && tokenClaims.UserID != profileIDString {
+				for _, following := range profile.User.Followings {
+					if following.ID.String() == tokenClaims.UserID {
+						canFollow = false
+						break
+					}
+				}
+			} else {
+				canFollow = false
+			}
+
+			// Добавляем профиль в новый список с полем canFollow
+			profilesWithExtras = append(profilesWithExtras, ProfileWithExtras{
+				Profile:   profile,
+				CanFollow: canFollow,
+			})
+		}
+	} else {
+		// Если токена нет, просто копируем профили без проверки подписки
+		for _, profile := range profiles {
+			profilesWithExtras = append(profilesWithExtras, ProfileWithExtras{
+				Profile:   profile,
+				CanFollow: false,
+			})
+		}
+	}
+
 	return c.JSON(fiber.Map{
 		"status": "success",
-		"data":   profiles,
+		"data":   profilesWithExtras,
 		"meta": fiber.Map{
 			"total": count,
 			"limit": limitInt,
 		},
 	})
 }
+
 
 
 func GetProfile(c *fiber.Ctx) error {
