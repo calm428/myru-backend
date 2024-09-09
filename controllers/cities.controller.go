@@ -2,9 +2,11 @@ package controllers
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/lib/pq"
 
 	"hyperpage/initializers"
 	"hyperpage/models"
@@ -91,95 +93,108 @@ func GetCities(c *fiber.Ctx) error {
 }
 
 func GetName(c *fiber.Ctx) error {
-	// Get the name query parameter
-	// Get the name and lang query parameters
-	name := c.Query("name")
-	lang := c.Query("lang")
-	mode := c.Query("mode")
+    // Получить параметры запроса name, lang и mode
+    names := c.Query("name")
+    lang := c.Query("lang")
+    mode := c.Query("mode")
 
-	// Get query parameters for pagination
-	limit := c.Query("limit", "10")
-	skip := c.Query("skip", "0")
+    // Получить параметры для пагинации
+    limit := c.Query("limit", "10")
+    skip := c.Query("skip", "0")
 
-	limitNumber, err := strconv.Atoi(limit)
-	if err != nil || limitNumber < 1 {
-		limitNumber = 10
-	}
+    limitNumber, err := strconv.Atoi(limit)
+    if err != nil || limitNumber < 1 {
+        limitNumber = 10
+    }
 
-	skipNumber, err := strconv.Atoi(skip)
-	if err != nil || skipNumber < 0 {
-		skipNumber = 0
-	}
+    skipNumber, err := strconv.Atoi(skip)
+    if err != nil || skipNumber < 0 {
+        skipNumber = 0
+    }
 
-	if mode == "translate" {
-		var cityTranslation models.CityTranslation
-		if err := initializers.DB.
-			Where("name ILIKE ?", "%"+name+"%").
-			First(&cityTranslation).Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Failed to fetch city translation from the database",
-			})
-		}
+    // Разделить имена городов по запятой
+    cityNames := strings.Split(names, ",")
 
-		var translatedCity models.CityTranslation
-		if err := initializers.DB.
-			Where("city_id = ? AND language = ?", cityTranslation.CityID, lang). // Replace "EN" with your target language code
-			First(&translatedCity).Error; err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Failed to fetch translated city name from the database",
-			})
-		}
+    // Проверить режим "translate"
+    if mode == "translate" {
+        var translations []models.CityTranslation
 
-		return c.JSON(fiber.Map{
-			"status": "success",
-			"data":   translatedCity.Name,
-		})
+        // Поиск по каждому городу
+        if err := initializers.DB.
+            Where("name ILIKE ANY (array[?])", pq.Array(cityNames)). // поиск по всем городам
+            First(&translations).Error; err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                "status":  "error",
+                "message": "Failed to fetch city translations from the database",
+            })
+        }
 
-	}
-	if name == "" || lang == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Both 'name' and 'lang' parameters are required",
-		})
-	}
+        var translatedCities []models.CityTranslation
+        if err := initializers.DB.
+            Where("city_id IN (?) AND language = ?", getCityIDs(translations), lang).
+            Find(&translatedCities).Error; err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                "status":  "error",
+                "message": "Failed to fetch translated city names from the database",
+            })
+        }
 
-	var cities []models.City
-	if err := initializers.DB.
-		Joins("JOIN city_translations ON cities.id = city_translations.city_id").
-		Preload("Translations", "language = ?", lang).
-		Where("city_translations.name ILIKE ? AND city_translations.language = ?", "%"+name+"%", lang).
-		Offset(skipNumber).Limit(limitNumber).
-		Find(&cities).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Failed to fetch cities from the database",
-		})
-	}
+        return c.JSON(fiber.Map{
+            "status": "success",
+            "data":   translatedCities,
+        })
+    }
 
-	// Get total count of matching cities
-	var total int64
-	if err := initializers.DB.
-		Model(&models.City{}).
-		Joins("JOIN city_translations ON cities.id = city_translations.city_id").
-		Where("city_translations.name ILIKE ? AND city_translations.language = ?", "%"+name+"%", lang).
-		Count(&total).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Failed to fetch total count from the database",
-		})
-	}
+    if len(cityNames) == 0 || lang == "" {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Both 'name' and 'lang' parameters are required",
+        })
+    }
 
-	return c.JSON(fiber.Map{
-		"status": "success",
-		"data":   cities,
-		"meta": fiber.Map{
-			"limit": limitNumber,
-			"skip":  skipNumber,
-			"total": total,
-		},
-	})
+    var cities []models.City
+    if err := initializers.DB.
+        Joins("JOIN city_translations ON cities.id = city_translations.city_id").
+        Preload("Translations", "language = ?", lang).
+        Where("city_translations.name ILIKE ANY (array[?]) AND city_translations.language = ?", pq.Array(cityNames), lang).
+        Offset(skipNumber).Limit(limitNumber).
+        Find(&cities).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Failed to fetch cities from the database",
+        })
+    }
+
+    // Подсчитать общее количество соответствующих городов
+    var total int64
+    if err := initializers.DB.
+        Model(&models.City{}).
+        Joins("JOIN city_translations ON cities.id = city_translations.city_id").
+        Where("city_translations.name ILIKE ANY (array[?]) AND city_translations.language = ?", pq.Array(cityNames), lang).
+        Count(&total).Error; err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Failed to fetch total count from the database",
+        })
+    }
+
+    return c.JSON(fiber.Map{
+        "status": "success",
+        "data":   cities,
+        "meta": fiber.Map{
+            "limit": limitNumber,
+            "skip":  skipNumber,
+            "total": total,
+        },
+    })
+}
+// Вспомогательная функция для извлечения ID городов
+func getCityIDs(translations []models.CityTranslation) []uint {
+    var ids []uint
+    for _, t := range translations {
+        ids = append(ids, t.CityID)
+    }
+    return ids
 }
 
 func CreateCity(c *fiber.Ctx) error {
