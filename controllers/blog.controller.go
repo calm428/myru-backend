@@ -1745,14 +1745,26 @@ func GetAll(c *fiber.Ctx) error {
         }
     }
 
-    // Фильтр по категории
+    // Фильтр по нескольким категориям
     if category != "" && category != "all" {
-        var guildTranslation models.GuildTranslation
-        initializers.DB.Where("name = ? AND language = ?", category, language).First(&guildTranslation)
-        if guildTranslation.ID != 0 {
+        categoryNames := strings.Split(category, ",")
+        for i := range categoryNames {
+            categoryNames[i] = strings.TrimSpace(categoryNames[i]) // Удалить лишние пробелы
+        }
+
+        var guildTranslations []models.GuildTranslation
+        initializers.DB.Where("name IN (?) AND language = ?", categoryNames, language).Find(&guildTranslations)
+
+        if len(guildTranslations) > 0 {
+            guildIDs := make([]uint, len(guildTranslations))
+            for i, gt := range guildTranslations {
+                guildIDs[i] = gt.GuildID
+            }
+
             subQuery := initializers.DB.Table("blog_guilds").
                 Select("blog_id").
-                Where("guilds_id = ?", guildTranslation.GuildID)
+                Where("guilds_id IN (?)", guildIDs)
+
             query = query.Where("blogs.id IN (?)", subQuery)
         }
     }
@@ -1929,6 +1941,7 @@ func GetAll(c *fiber.Ctx) error {
         },
     })
 }
+
 
 func GetRandom(c *fiber.Ctx) error {
 
