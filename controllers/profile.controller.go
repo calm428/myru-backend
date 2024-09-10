@@ -282,7 +282,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		}
 		query = query.Joins("JOIN profiles_hashtags ON profiles.id = profiles_hashtags.profile_id").
 			Joins("JOIN hashtags_for_profiles ON profiles_hashtags.hashtags_for_profile_id = hashtags_for_profiles.id").
-			Where("hashtags_for_profiles.hashtag IN (?)", hashtagValues)
+			Where("hashtags_for_profiles.hashtag IN (?)", hashtagValuesWithPrefix)
 	}
 
 	// Подсчёт количества профилей
