@@ -186,6 +186,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 	language := c.Query("language")
 	var profiles []models.Profile
 
+	// Создание базового запроса с необходимыми связями
 	query := initializers.DB.
 		Preload("Guilds.Translations", "language = ?", language).
 		Preload("Hashtags").
@@ -205,7 +206,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 	title := c.Query("title")
 	money := c.Query("money")
 
-	// Обработка диапазона по алфавиту
+	// Фильтрация по диапазону алфавита
 	if money != "" && money != "all" {
 		if strings.Contains(money, "-") {
 			alphabeticRange := strings.Split(money, "-")
@@ -216,17 +217,16 @@ func GetAllProfile(c *fiber.Ctx) error {
 			upperAlpha := strings.TrimSpace(alphabeticRange[1])
 			query = query.Where("(LOWER(SUBSTR(Firstname, 1, 1)) >= ? AND LOWER(SUBSTR(Firstname, 1, 1)) <= ?) AND (LOWER(SUBSTR(Lastname, 1, 1)) >= ? AND LOWER(SUBSTR(Lastname, 1, 1)) <= ?)", lowerAlpha, upperAlpha, lowerAlpha, upperAlpha)
 		} else {
-			alphabeticRange := strings.Split(money, "-")
-			lowerAlpha := strings.TrimSpace(alphabeticRange[0])
+			lowerAlpha := strings.TrimSpace(money)
 			query = query.Where("LOWER(SUBSTR(Firstname, 1, 1)) = ?", lowerAlpha)
 		}
 	}
 
-	// Обработка фильтра по нескольким городам
+	// Фильтрация по нескольким городам
 	if city != "" && city != "all" {
 		cityNames := strings.Split(city, ",")
 		for i := range cityNames {
-			cityNames[i] = strings.TrimSpace(cityNames[i]) // Удаляем лишние пробелы
+			cityNames[i] = strings.TrimSpace(cityNames[i])
 		}
 		var cityTranslations []models.CityTranslation
 		initializers.DB.Where("name IN (?) AND language = ?", cityNames, language).Find(&cityTranslations)
@@ -244,11 +244,11 @@ func GetAllProfile(c *fiber.Ctx) error {
 		}
 	}
 
-	// Обработка фильтра по нескольким категориям
+	// Фильтрация по категориям
 	if category != "" && category != "all" {
 		categoryNames := strings.Split(category, ",")
 		for i := range categoryNames {
-			categoryNames[i] = strings.TrimSpace(categoryNames[i]) // Удаляем лишние пробелы
+			categoryNames[i] = strings.TrimSpace(categoryNames[i])
 		}
 		var guildTranslations []models.GuildTranslation
 		initializers.DB.Where("name IN (?) AND language = ?", categoryNames, language).Find(&guildTranslations)
@@ -266,22 +266,20 @@ func GetAllProfile(c *fiber.Ctx) error {
 		}
 	}
 
-	// Фильтр по заголовку (описанию)
+	// Фильтрация по заголовку (описанию)
 	if title != "" && title != "all" {
 		query = query.Where("LOWER(Descr) LIKE ?", "%"+title+"%")
 	}
 
-	// Фильтр по хэштегам
+	// Фильтрация по хэштегам
 	if hashtags != "" && hashtags != "all" {
 		hashtagValues := strings.Split(hashtags, ",")
-		hashtagValuesWithPrefix := make([]string, len(hashtagValues))
-		for i, tag := range hashtagValues {
-			hashtagValuesWithPrefix[i] = strings.TrimSpace(tag)
+		for i := range hashtagValues {
+			hashtagValues[i] = strings.TrimSpace(hashtagValues[i])
 		}
-
 		query = query.Joins("JOIN profiles_hashtags ON profiles.id = profiles_hashtags.profile_id").
 			Joins("JOIN hashtags_for_profiles ON profiles_hashtags.hashtags_for_profile_id = hashtags_for_profiles.id").
-			Where("hashtags_for_profiles.hashtag IN (?)", hashtagValuesWithPrefix)
+			Where("hashtags_for_profiles.hashtag IN (?)", hashtagValues)
 	}
 
 	// Подсчёт количества профилей
@@ -303,20 +301,80 @@ func GetAllProfile(c *fiber.Ctx) error {
 		})
 	}
 
+	// Извлечение access_token и получение текущего пользователя
+	// access_token := c.Cookies("access_token")
+	authorization := c.Get("Authorization")
+
+	var currentUserID uuid.UUID
+	if authorization != "" && authorization != "undefined" {
+		config, _ := initializers.LoadConfig(".")
+		tokenClaims, err := utils.ValidateToken(authorization, config.AccessTokenPublicKey)
+		if err != nil {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "fail", "message": err.Error()})
+		}
+
+		// Преобразование currentUserID в uuid.UUID из satori/go.uuid
+		currentUserID, err = uuid.FromString(tokenClaims.UserID)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"status":  "error",
+				"message": "Invalid user ID in token",
+			})
+		}
+	}
+
+	// Получаем список профилей
 	err = utils.Paginate(c, query.Limit(limitInt).Find(&profiles), &profiles)
 	if err != nil {
 		return err
 	}
 
+	// Проверка возможности подписки (canFollow) для каждого профиля
+	type ProfileWithFollowStatus struct {
+		Profile   models.Profile `json:"profile"`
+		CanFollow bool           `json:"canFollow"`
+	}
+
+	var profilesWithFollowStatus []ProfileWithFollowStatus
+	for _, profile := range profiles {
+		canFollow := false
+	
+		// Проверка, подписан ли текущий пользователь на этот профиль
+		if currentUserID != uuid.Nil && profile.User.ID != currentUserID {
+			var isFollowing int64
+			err := initializers.DB.Table("user_relation").Where("user_id = ? AND following_id = ?", currentUserID, profile.User.ID).Count(&isFollowing).Error
+			
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"status":  "error",
+					"message": "Failed to check follow status",
+					"error":   err.Error(),
+				})
+			}
+	
+			// Если пользователь еще не подписан на этот профиль, то canFollow = true
+			if isFollowing == 0 {
+				canFollow = true
+			}
+		}
+	
+		profileWithStatus := ProfileWithFollowStatus{
+			Profile:   profile,
+			CanFollow: canFollow,
+		}
+		profilesWithFollowStatus = append(profilesWithFollowStatus, profileWithStatus)
+	}
+	
 	return c.JSON(fiber.Map{
 		"status": "success",
-		"data":   profiles,
+		"data":   profilesWithFollowStatus,
 		"meta": fiber.Map{
 			"total": count,
 			"limit": limitInt,
 		},
 	})
 }
+
 
 
 func GetProfile(c *fiber.Ctx) error {
