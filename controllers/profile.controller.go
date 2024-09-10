@@ -182,11 +182,6 @@ func GetProfiles(c *fiber.Ctx) error {
 
 }
 
-type ProfileWithFollowStatus struct {
-	Profile   models.Profile `json:"profile"`
-	CanFollow bool           `json:"canFollow"`
-}
-
 func GetAllProfile(c *fiber.Ctx) error {
 	language := c.Query("language")
 	var profiles []models.Profile
@@ -308,55 +303,20 @@ func GetAllProfile(c *fiber.Ctx) error {
 		})
 	}
 
-	// Извлечение access_token и предзагрузка подписок для авторизованного пользователя
-	access_token := c.Cookies("access_token")
-	var userFollowings []*models.User
-	if access_token != "" && access_token != "undefined" {
-		config, _ := initializers.LoadConfig(".")
-		tokenClaims, err := utils.ValidateToken(access_token, config.AccessTokenPublicKey)
-		if err != nil {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "fail", "message": err.Error()})
-		}
-
-		userID := tokenClaims.UserID
-		var currentUser models.User
-		// Предзагрузка подписок авторизованного пользователя
-		initializers.DB.Preload("Followings").Where("id = ?", userID).Find(&currentUser)
-		userFollowings = currentUser.Followings
-	}
-
 	err = utils.Paginate(c, query.Limit(limitInt).Find(&profiles), &profiles)
 	if err != nil {
 		return err
 	}
 
-	// Подготовка списка профилей с параметром canFollow
-	var profilesWithFollowStatus []ProfileWithFollowStatus
-	for _, profile := range profiles {
-		canFollow := false
-		for _, following := range userFollowings {
-			if following.ID == profile.User.ID {
-				canFollow = true
-				break
-			}
-		}
-		profileWithStatus := ProfileWithFollowStatus{
-			Profile:   profile,
-			CanFollow: canFollow,
-		}
-		profilesWithFollowStatus = append(profilesWithFollowStatus, profileWithStatus)
-	}
-
 	return c.JSON(fiber.Map{
 		"status": "success",
-		"data":   profilesWithFollowStatus,
+		"data":   profiles,
 		"meta": fiber.Map{
 			"total": count,
 			"limit": limitInt,
 		},
 	})
 }
-
 
 
 func GetProfile(c *fiber.Ctx) error {
