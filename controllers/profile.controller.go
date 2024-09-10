@@ -343,6 +343,8 @@ func GetAllProfile(c *fiber.Ctx) error {
 		// Проверка, подписан ли текущий пользователь на этот профиль
 		if currentUserID != uuid.Nil && profile.User.ID != currentUserID {
 			var isFollowing int64
+
+			fmt.Println(isFollowing)
 			err := initializers.DB.Table("user_relation").Where("user_id = ? AND following_id = ?", currentUserID, profile.User.ID).Count(&isFollowing).Error
 			
 			if err != nil {
@@ -356,6 +358,8 @@ func GetAllProfile(c *fiber.Ctx) error {
 			// Если пользователь еще не подписан на этот профиль, то canFollow = true
 			if isFollowing == 0 {
 				canFollow = true
+			} else {
+				canFollow = false
 			}
 		}
 	
