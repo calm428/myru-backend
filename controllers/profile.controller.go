@@ -356,9 +356,9 @@ func GetAllProfile(c *fiber.Ctx) error {
 	
 			// Если пользователь еще не подписан на этот профиль, то canFollow = true
 			if isFollowing == 0 {
-				canFollow = true
-			} else {
 				canFollow = false
+			} else {
+				canFollow = true
 			}
 		}
 	
