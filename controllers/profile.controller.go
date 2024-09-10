@@ -344,8 +344,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		if currentUserID != uuid.Nil && profile.User.ID != currentUserID {
 			var isFollowing int64
 
-			fmt.Println(isFollowing)
-			err := initializers.DB.Table("user_relation").Where("user_id = ? AND following_id = ?", currentUserID, profile.User.ID).Count(&isFollowing).Error
+			err := initializers.DB.Table("user_relation").Where("user_id = ? AND following_id = ?", profile.User.ID, currentUserID).Count(&isFollowing).Error
 			
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
