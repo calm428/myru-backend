@@ -81,11 +81,8 @@ func Scribe(c *fiber.Ctx) error {
 	}
 
 	// Update the relationship in the database
-	err := initializers.DB.Exec("INSERT INTO user_relations (user_id, follower_id) VALUES (?, ?)", requestBody.UserID, requestBody.FollowerID).Error
-	if err != nil {
-		return err
-	}
-	
+	initializers.DB.Model(&user).Association("Followers").Append(&follower)
+
 	return c.JSON(fiber.Map{
 		"status":  "success",
 		"message": "was add",
