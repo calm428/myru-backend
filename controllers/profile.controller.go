@@ -217,7 +217,8 @@ func GetAllProfile(c *fiber.Ctx) error {
 			upperAlpha := strings.TrimSpace(alphabeticRange[1])
 			query = query.Where("(LOWER(SUBSTR(Firstname, 1, 1)) >= ? AND LOWER(SUBSTR(Firstname, 1, 1)) <= ?) AND (LOWER(SUBSTR(Lastname, 1, 1)) >= ? AND LOWER(SUBSTR(Lastname, 1, 1)) <= ?)", lowerAlpha, upperAlpha, lowerAlpha, upperAlpha)
 		} else {
-			lowerAlpha := strings.TrimSpace(money)
+			alphabeticRange := strings.Split(money, "-")
+			lowerAlpha := strings.TrimSpace(alphabeticRange[0])
 			query = query.Where("LOWER(SUBSTR(Firstname, 1, 1)) = ?", lowerAlpha)
 		}
 	}
