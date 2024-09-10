@@ -276,7 +276,9 @@ func GetAllProfile(c *fiber.Ctx) error {
 	if hashtags != "" && hashtags != "all" {
 		hashtagValues := strings.Split(hashtags, ",")
 		for i := range hashtagValues {
-			hashtagValues[i] = strings.TrimSpace(hashtagValues[i])
+			hashtagValuesWithPrefix := make([]string, len(hashtagValues))
+			for i, tag := range hashtagValues {
+				hashtagValuesWithPrefix[i] = strings.TrimSpace(tag)
 		}
 		query = query.Joins("JOIN profiles_hashtags ON profiles.id = profiles_hashtags.profile_id").
 			Joins("JOIN hashtags_for_profiles ON profiles_hashtags.hashtags_for_profile_id = hashtags_for_profiles.id").
