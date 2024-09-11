@@ -352,6 +352,8 @@ func GetAllProfile(c *fiber.Ctx) error {
 			}
 
 			if isFollowing == 0 {
+				canFollow = false
+			} else {
 				canFollow = true
 			}
 		}
