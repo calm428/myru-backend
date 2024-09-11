@@ -303,7 +303,6 @@ func GetAllProfile(c *fiber.Ctx) error {
 	}
 
 	// Извлечение access_token и получение текущего пользователя
-	// access_token := c.Cookies("access_token")
 	authorization := c.Get("Authorization")
 
 	var currentUserID uuid.UUID
@@ -314,7 +313,6 @@ func GetAllProfile(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "fail", "message": err.Error()})
 		}
 
-		// Преобразование currentUserID в uuid.UUID из satori/go.uuid
 		currentUserID, err = uuid.FromString(tokenClaims.UserID)
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -330,7 +328,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Проверка возможности подписки (canFollow) для каждого профиля
+	// Проверка возможности подписки (canFollow) только если есть авторизация
 	type ProfileWithFollowStatus struct {
 		Profile   models.Profile `json:"profile"`
 		CanFollow bool           `json:"canFollow"`
@@ -339,13 +337,12 @@ func GetAllProfile(c *fiber.Ctx) error {
 	var profilesWithFollowStatus []ProfileWithFollowStatus
 	for _, profile := range profiles {
 		canFollow := false
-	
-		// Проверка, подписан ли текущий пользователь на этот профиль
-		if currentUserID != uuid.Nil && profile.User.ID != currentUserID {
+
+		// Логика проверки подписки, только если пользователь авторизован
+		if authorization != "" && authorization != "undefined" && currentUserID != uuid.Nil && profile.User.ID != currentUserID {
 			var isFollowing int64
 
 			err := initializers.DB.Table("user_relation").Where("user_id = ? AND following_id = ?", profile.User.ID, currentUserID).Count(&isFollowing).Error
-			
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"status":  "error",
@@ -353,22 +350,19 @@ func GetAllProfile(c *fiber.Ctx) error {
 					"error":   err.Error(),
 				})
 			}
-	
-			// Если пользователь еще не подписан на этот профиль, то canFollow = true
+
 			if isFollowing == 0 {
-				canFollow = false
-			} else {
 				canFollow = true
 			}
 		}
-	
+
 		profileWithStatus := ProfileWithFollowStatus{
 			Profile:   profile,
 			CanFollow: canFollow,
 		}
 		profilesWithFollowStatus = append(profilesWithFollowStatus, profileWithStatus)
 	}
-	
+
 	return c.JSON(fiber.Map{
 		"status": "success",
 		"data":   profilesWithFollowStatus,
@@ -378,6 +372,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		},
 	})
 }
+
 
 
 
