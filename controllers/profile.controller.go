@@ -306,19 +306,17 @@ func GetAllProfile(c *fiber.Ctx) error {
 	authorization := c.Get("Authorization")
 
 	var currentUserID uuid.UUID
+	authorized := false
 	if authorization != "" && authorization != "undefined" {
 		config, _ := initializers.LoadConfig(".")
 		tokenClaims, err := utils.ValidateToken(authorization, config.AccessTokenPublicKey)
-		if err != nil {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"status": "fail", "message": err.Error()})
-		}
 
-		currentUserID, err = uuid.FromString(tokenClaims.UserID)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Invalid user ID in token",
-			})
+		// Если токен не просрочен, продолжаем
+		if err == nil {
+			currentUserID, err = uuid.FromString(tokenClaims.UserID)
+			if err == nil {
+				authorized = true
+			}
 		}
 	}
 
@@ -328,7 +326,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Проверка возможности подписки (canFollow) только если есть авторизация
+	// Проверка возможности подписки (canFollow) только если авторизован и токен действителен
 	type ProfileWithFollowStatus struct {
 		Profile   models.Profile `json:"profile"`
 		CanFollow bool           `json:"canFollow"`
@@ -339,7 +337,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		canFollow := false
 
 		// Логика проверки подписки, только если пользователь авторизован
-		if authorization != "" && authorization != "undefined" && currentUserID != uuid.Nil && profile.User.ID != currentUserID {
+		if authorized && currentUserID != uuid.Nil && profile.User.ID != currentUserID {
 			var isFollowing int64
 
 			err := initializers.DB.Table("user_relation").Where("user_id = ? AND following_id = ?", profile.User.ID, currentUserID).Count(&isFollowing).Error
@@ -352,8 +350,6 @@ func GetAllProfile(c *fiber.Ctx) error {
 			}
 
 			if isFollowing == 0 {
-				canFollow = false
-			} else {
 				canFollow = true
 			}
 		}
@@ -374,6 +370,7 @@ func GetAllProfile(c *fiber.Ctx) error {
 		},
 	})
 }
+
 
 
 
