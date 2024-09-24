@@ -101,6 +101,6 @@ func Balance(c *fiber.Ctx) error {
 	// Возвращение результата
 	return c.JSON(fiber.Map{
 		"status":  "success",
-		"balance": balanceResp.Balance,
+		"data": balanceResp,
 	})
 }
