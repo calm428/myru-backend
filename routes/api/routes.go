@@ -62,6 +62,7 @@ func Register(micro *fiber.App) {
 
 	micro.Route("/crypto", func(router fiber.Router) {
 		router.Get("/balance", middleware.DeserializeUser, crypto.Balance)
+		router.Post("/walllet", middleware.DeserializeUser, crypto.Wallet)
 	})
 
 
