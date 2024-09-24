@@ -8,6 +8,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"hyperpage/controllers"
+	"hyperpage/controllers/crypto"
+
 	"hyperpage/initializers"
 	"hyperpage/middleware"
 )
@@ -57,6 +59,11 @@ func Register(micro *fiber.App) {
 		router.Get("/followers", middleware.DeserializeUser, controllers.GetFollowers)
 		router.Post("/send-push", middleware.DeserializeUser, controllers.SendPushNotification)
 	})
+
+	micro.Route("/crypto", func(router fiber.Router) {
+		router.Get("/balance", middleware.DeserializeUser, crypto.Balance)
+	})
+
 
 	micro.Route("/newreq", func(router fiber.Router) {
 		router.Post("/post", controllers.Userq)
