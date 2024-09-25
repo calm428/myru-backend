@@ -18,8 +18,8 @@ import (
 // Blockchain API response structure
 type BalanceResponse struct {
     Balance float64 `json:"balance"`
-	Wallet string `json:wallet`
-	Public_key string `json:public_key`
+	Wallet string `json:"wallet"`
+	Public_key string `json:"public_key"`
 }
 
 // Function to call blockchain API

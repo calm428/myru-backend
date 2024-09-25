@@ -1,15 +1,20 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
 	"log"
+	"net/http"
+	"net/url"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 	"github.com/nikita-vanyasin/tinkoff"
 	"gorm.io/gorm"
 )
@@ -126,6 +131,9 @@ func Pending(c *fiber.Ctx) error {
 				"message": "Failed to create transaction",
 			})
 		}
+		
+
+		
 
 		var err = utils.SendPersonalMessageToClient(userSession, "BalanceAdded")
 		if err != nil {
@@ -133,7 +141,63 @@ func Pending(c *fiber.Ctx) error {
 			_ = err
 		}
 
-	}
+		err = godotenv.Load("app.env")
+		if err != nil {
+			log.Fatalf("Error loading .env file")
+		}
+
+		// Формирование URL с учетом userID
+		blockchainAPI := os.Getenv("BLOCKCHAIN_API")
+		api := fmt.Sprintf("%s/api/add_block", blockchainAPI)
+		// payment.UserID
+
+		data := url.Values{}
+		data.Set("transaction_type", "fiat_conversion")
+		data.Set("from_currency", "₽")
+		data.Set("to_currency", "RUDT")
+		data.Set("amount", fmt.Sprintf("%.2f", decimalAmount)) // Преобразуем float64 в строку
+		data.Set("conversion_rate", "1")
+		data.Set("data", "Конвертация Рубля в криптовалюту RUDT")
+		data.Set("user_id", payment.UserID.String()) // Преобразуем UUID в строку
+	
+
+		// Получение токена для авторизации
+		blockchainToken := os.Getenv("BLOCKCHAIN_TOKEN")
+
+		if blockchainToken == "" {
+			return errors.New("blockchain token is missing in environment variables")
+		}
+		
+
+		// Формирование запроса
+		req, err := http.NewRequest("POST", api, nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+blockchainToken)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		// Выполнение запроса
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		// Обработка ответа
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("ошибка при отправке запроса, статус код: %d", resp.StatusCode)
+		}
+
+
+		// var balanceResp BalanceResponse
+		// if err := json.Unmarshal(body, &balanceResp); err != nil {
+		// 	return err
+		// }
+
+
+		}
 
 	// return the city names as a JSON response
 	return c.JSON(fiber.Map{
