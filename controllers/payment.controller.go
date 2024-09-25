@@ -52,7 +52,37 @@ func Pending(c *fiber.Ctx) error {
 	// Convert the PaymentId to an integer
 	var paymentID int64
 
-	switch v := requestBody["PaymentId"].(type) {
+	// switch v := requestBody["PaymentId"].(type) {
+	// case float64:
+	// 	paymentID = int64(v)
+	// case string:
+	// 	// Преобразование строки в int64
+	// 	id, err := strconv.ParseInt(v, 10, 64)
+	// 	if err != nil {
+	// 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 			"status":  "error",
+	// 			"message": "Invalid PaymentId format",
+	// 		})
+	// 	}
+	// 	paymentID = id
+	// default:
+	// 	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "PaymentId is of an unexpected type",
+	// 	})
+	// }
+
+	// Проверка, что в requestBody есть ключ Params
+	params, ok := requestBody["Params"].(map[string]interface{})
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Invalid Params format",
+		})
+	}
+
+	// Доступ к полю PaymentId внутри Params
+	switch v := params["PaymentId"].(type) {
 	case float64:
 		paymentID = int64(v)
 	case string:
@@ -69,15 +99,6 @@ func Pending(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"status":  "error",
 			"message": "PaymentId is of an unexpected type",
-		})
-	}
-
-	// Проверка, что в requestBody есть ключ Params
-	params, ok := requestBody["Params"].(map[string]interface{})
-	if !ok {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Invalid Params format",
 		})
 	}
 
