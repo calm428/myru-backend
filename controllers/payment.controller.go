@@ -44,7 +44,7 @@ func Pending(c *fiber.Ctx) error {
 		})
 	}
 
-	var response = requestBody
+	// var response = requestBody
 
 	// Access the value of the PaymentId field
 	// paymentIDFloat := response["PaymentId"].(float64)
@@ -72,7 +72,25 @@ func Pending(c *fiber.Ctx) error {
 		})
 	}
 
-	if response["Status"] == "CONFIRMED" { // Use == for comparison
+	// Проверка, что в requestBody есть ключ Params
+	params, ok := requestBody["Params"].(map[string]interface{})
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Invalid Params format",
+		})
+	}
+
+	// Доступ к полю Status внутри Params
+	status, ok := params["Status"].(string)
+	if !ok {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Status field is missing or not a string",
+		})
+	}
+
+	if status == "CONFIRMED" { // Use == for comparison
 		var payment models.Payments
 		if err := initializers.DB.Where("payment_id = ?  AND status = ?", fmt.Sprintf("%d", paymentID), "NEW").First(&payment).Error; err != nil {
 			// Handle error if the record is not found or other issues
