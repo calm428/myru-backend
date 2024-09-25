@@ -1,11 +1,13 @@
 package controllers
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -170,10 +172,11 @@ func Pending(c *fiber.Ctx) error {
 		
 
 		// Формирование запроса
-		req, err := http.NewRequest("POST", api, nil)
+		req, err := http.NewRequest("POST", api, bytes.NewBufferString(data.Encode()))
 		if err != nil {
 			return err
 		}
+
 		req.Header.Set("Authorization", "Bearer "+blockchainToken)
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -190,6 +193,13 @@ func Pending(c *fiber.Ctx) error {
 			return fmt.Errorf("ошибка при отправке запроса, статус код: %d", resp.StatusCode)
 		}
 
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+	
+		fmt.Println("Response body:", string(body))
+	
 
 		// var balanceResp BalanceResponse
 		// if err := json.Unmarshal(body, &balanceResp); err != nil {
