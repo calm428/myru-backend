@@ -211,8 +211,8 @@ func CreateInvoice(c *fiber.Ctx) error {
 	// var terminalKey = "1718186727633DEMO"
 	// var terminalPassword = "lkSI$mq4FqxMBrwf"
 
-	var terminalKey = "1669511559870DEMO"
-	var terminalPassword = "3mctl616b7ll8cnh"
+	var terminalKey = "1669511559870"
+	var terminalPassword = "vfo6kjw9gntp2sxz"
 
 	client := tinkoff.NewClient(terminalKey, terminalPassword)
 
