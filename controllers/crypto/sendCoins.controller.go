@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -55,14 +56,19 @@ func sendCoinsToAPI(fromWallet, toWallet, publicKey, amount string) (*SendCoinsR
 	data.Set("public_key", publicKey)
 	data.Set("amount", amount)
 
+	encodedData := strings.NewReader(data.Encode())
+
+
 	// Формирование запроса
-	req, err := http.NewRequest("POST", apiURL, nil)
+	req, err := http.NewRequest("POST", apiURL, encodedData)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+blockchainToken)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.PostForm = data
+
+
 
 	// Отправка запроса
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -71,6 +77,7 @@ func sendCoinsToAPI(fromWallet, toWallet, publicKey, amount string) (*SendCoinsR
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 
 	// Обработка ответа от API
 	if resp.StatusCode != http.StatusOK {
@@ -102,6 +109,7 @@ func SendCoins(c *fiber.Ctx) error {
 			"error": "missing required fields",
 		})
 	}
+
 
 	// Отправка данных на blockchain API
 	sendCoinsResp, err := sendCoinsToAPI(reqData.FromWallet, reqData.ToWallet, reqData.PublicKey, reqData.Amount)
