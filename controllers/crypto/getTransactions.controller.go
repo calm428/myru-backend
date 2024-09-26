@@ -16,10 +16,8 @@ import (
 )
 
 // TransactionType структура для разных типов транзакций
-type TransactionType struct {
-    OnlineTime *OnlineTime `json:"OnlineTime,omitempty"`
-    // Добавьте другие типы транзакций здесь, если необходимо
-}
+type TransactionType map[string]interface{}
+
 
 // OnlineTime структура для типа транзакции "OnlineTime"
 type OnlineTime struct {
