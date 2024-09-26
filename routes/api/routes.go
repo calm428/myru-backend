@@ -64,7 +64,7 @@ func Register(micro *fiber.App) {
 		router.Get("/balance", middleware.DeserializeUser, crypto.Balance)
 		router.Post("/walllet", middleware.DeserializeUser, crypto.Wallet)
 		router.Get("/transactions", middleware.DeserializeUser, crypto.GetTransactions)
-		router.Get("/walllet/send", middleware.DeserializeUser, crypto.SendCoins)
+		router.Post("/walllet/send", middleware.DeserializeUser, crypto.SendCoins)
 	})
 
 
