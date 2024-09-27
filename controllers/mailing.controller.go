@@ -131,7 +131,7 @@ func sendPushNotificationToOwner(userID uuid.UUID, title, text, pageURL string) 
 	return nil
 }
 
-func sendNotificationToOwner(userID, title, text, pageURL string) error {
+func SendNotificationToOwner(userID, title, text, pageURL string) error {
 
 	var user models.User
 	if err := initializers.DB.

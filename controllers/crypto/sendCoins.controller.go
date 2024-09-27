@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hyperpage/controllers"
 	"net/http"
 	"net/url"
 	"os"
@@ -92,9 +93,23 @@ func sendCoinsToAPI(fromWallet, toWallet, publicKey, amount string) (*SendCoinsR
 	}
 
 
+    // Используем reciver_id для отправки push-уведомления
+    err = controllers.SendNotificationToOwner(
+        sendCoinsResp.Reciver_id,                     // ID получателя
+        "Новый перевод",                             // Заголовок уведомления
+        fmt.Sprintf("Ваш баланс: %.2f", sendCoinsResp.NewToBalance), // Текст уведомления с новым балансом
+        "https://www.myru.online/ru/profile/accounting", // Ссылка в уведомлении
+    )
+	
+    if err != nil {
+        return nil, err
+    }
+
 
 	return &sendCoinsResp, nil
 }
+
+
 
 // Контроллер для отправки монет
 func SendCoins(c *fiber.Ctx) error {

@@ -132,7 +132,7 @@ func CreateChatRoomForDM(c *fiber.Ctx) error {
 		pageURL := fmt.Sprintf("https://www.myru.online/ru/chat/%s?mode=false", roomIDStr)
 
 		// sendPushNotificationToOwner(acceptorUser.ID, requestorUser.Name, initialMessage.Content, pageURL)
-		sendNotificationToOwner(acceptorUser.ID.String(), requestorUser.Name, initialMessage.Content, pageURL)
+		SendNotificationToOwner(acceptorUser.ID.String(), requestorUser.Name, initialMessage.Content, pageURL)
 
 		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 			"status": "success",
@@ -670,7 +670,7 @@ func SendMessageForDM(c *fiber.Ctx) error {
 	pageURL := fmt.Sprintf("https://www.myru.online/chat/%s?mode=false", roomIDStr)
 
 	// sendPushNotificationToOwner(recipient.UserID, user.Name, message.Content, pageURL)
-	sendNotificationToOwner(recipient.UserID.String(), user.Name, message.Content, pageURL)
+	SendNotificationToOwner(recipient.UserID.String(), user.Name, message.Content, pageURL)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success", "data": fiber.Map{"message": message}})
 }
