@@ -30,6 +30,7 @@ type SendCoinsResponse struct {
 	NewFromBalance  float64 `json:"new_from_balance"`
 	NewToBalance    float64 `json:"new_to_balance"`
 	Signature       string  `json:"signature"`
+	Reciver_id			string   `jsin:"reciver_id"`
 }
 
 // Функция для отправки монет на blockchain API
@@ -89,6 +90,8 @@ func sendCoinsToAPI(fromWallet, toWallet, publicKey, amount string) (*SendCoinsR
 	if err := json.NewDecoder(resp.Body).Decode(&sendCoinsResp); err != nil {
 		return nil, err
 	}
+
+
 
 	return &sendCoinsResp, nil
 }
