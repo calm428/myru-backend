@@ -97,10 +97,10 @@ func sendCoinsToAPI(fromWallet, toWallet, publicKey, amount string) (*SendCoinsR
     err = controllers.SendNotificationToOwner(
         sendCoinsResp.Reciver_id,                     // ID получателя
         "Новый перевод",                             // Заголовок уведомления
-        fmt.Sprintf("Ваш баланс: %.2f", sendCoinsResp.NewToBalance), // Текст уведомления с новым балансом
+        fmt.Sprintf("Ваш баланс RUDT: %.2f", sendCoinsResp.NewToBalance), // Текст уведомления с новым балансом
         "https://www.myru.online/ru/profile/accounting", // Ссылка в уведомлении
     )
-	
+
     if err != nil {
         return nil, err
     }
