@@ -125,9 +125,11 @@ func ChangePhoto(c *fiber.Ctx) error {
         }
     }
 
+	filePathforDB := filepath.Join(user.Storage, newFileName)
+
 	// Обновляем поле Photo в базе данных
 	updateFields := map[string]interface{}{
-		"Photo": filePath,
+		"Photo": filePathforDB,
 	}
 
 
