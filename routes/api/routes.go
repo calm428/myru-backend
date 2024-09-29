@@ -108,6 +108,8 @@ func Register(micro *fiber.App) {
 		router.Get("/notifications", middleware.DeserializeUser, controllers.GetNotifications)
 		router.Patch("/notifications/:id/read", middleware.DeserializeUser, controllers.MarkNotificationAsRead)
 		router.Delete("/notifications/:id", middleware.DeserializeUser, controllers.DeleteNotification)
+		router.Put("/changePhoto", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.ChangePhoto)
+
 
 		router.Post("/sendrequestcall", controllers.SendBotCallRequest)
 		// router.Get("/me", middleware.DeserializeUser, controllers.GetMe)

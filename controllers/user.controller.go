@@ -49,6 +49,110 @@ func ChangeNickName(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "success"})
 }
 
+// Вспомогательная функция для проверки наличия элемента в срезе
+func contains(slice []string, item string) bool {
+    for _, a := range slice {
+        if a == item {
+            return true
+        }
+    }
+    return false
+}
+
+func ChangePhoto(c *fiber.Ctx) error {
+	// Получаем пользователя из локальных данных контекста
+	user := c.Locals("user").(models.UserResponse)
+	userID := user.ID
+	userStorage := user.Storage
+
+	
+	// Получаем загруженный файл из формы с ключом "photo"
+	file, err := c.FormFile("photo")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Не удалось получить файл. Убедитесь, что поле называется 'photo' и файл загружен.",
+		})
+	}
+
+	// Проверяем тип файла (допустимые расширения)
+	allowedExtensions := []string{".jpg", ".jpeg", ".png", ".gif"}
+	extension := strings.ToLower(filepath.Ext(file.Filename))
+	if !contains(allowedExtensions, extension) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Недопустимый тип файла. Разрешены только .jpg, .jpeg, .png, .gif",
+		})
+	}
+
+	config, err := initializers.LoadConfig(".")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка загрузки конфигурации.",
+		})
+	}
+	// Генерируем уникальное имя для файла, чтобы избежать конфликтов
+	newFileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), extension)
+	// Определяем путь для сохранения файла
+	filePath := filepath.Join(config.IMGStorePath, user.Storage, newFileName)
+
+	// // Убедитесь, что директория существует, если нет — создайте её
+	// if err := os.MkdirAll(filePath, os.ModePerm); err != nil {
+	// 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "Не удалось создать директорию для хранения файла.",
+	// 	})
+	// }
+
+	
+    // Сохраняем файл на сервере в указанной директории
+    if err := c.SaveFile(file, filePath); err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Не удалось сохранить файл. Попробуйте позже.",
+        })
+    }
+
+    // Опционально: удаляем старую фотографию, если она существует и не пустая
+    if user.Photo != "" {
+        oldPhotoPath := filepath.Join(config.IMGStorePath, userStorage, filepath.Base(user.Photo))
+        if _, err := os.Stat(oldPhotoPath); err == nil {
+            if err := os.Remove(oldPhotoPath); err != nil {
+                // Логируйте ошибку, но не возвращайте её пользователю
+                fmt.Printf("Не удалось удалить старую фотографию: %v\n", err)
+            }
+        }
+    }
+
+	// Обновляем поле Photo в базе данных
+	updateFields := map[string]interface{}{
+		"Photo": filePath,
+	}
+
+
+    if err := initializers.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updateFields).Error; err != nil {
+        // Если возникла ошибка при обновлении, удаляем только что загруженный файл, чтобы не хранить ненужные файлы
+        os.Remove(filePath)
+
+        if errors.Is(err, gorm.ErrRecordNotFound) {
+            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+                "status":  "error",
+                "message": "Пользователь не найден",
+            })
+        }
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "status":  "error",
+            "message": "Произошла ошибка при обновлении фотографии",
+        })
+    }
+	// Возвращаем успешный ответ с новым путем к фотографии
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"status": "success",
+		"photo":  filePath,
+	})
+}
+
 func SetTokenIOSdevice(c *fiber.Ctx) error {
 	// Define a struct to parse the JSON body
 	type requestBody struct {
@@ -104,13 +208,6 @@ func GetMeH(id string, userName string, fileURL string, tId int64) (*models.User
 		return nil, err
 	}
 
-	// config, err := initializers.LoadConfig(".")
-	// if err != nil {
-	// 	log.Fatalln("Failed to load environment variables! \n", err.Error())
-	// }
-
-	// fmt.Println(`DBBBB: ` + config.ClientOrigin)
-
 	// Open the file URL for reading
 	resp, err := http.Get(fileURL)
 	if err != nil {
@@ -136,7 +233,6 @@ func GetMeH(id string, userName string, fileURL string, tId int64) (*models.User
 	user.TelegramName = &userName
 	user.Tid = tId
 	user.TelegramActivated = true
-	// user.Photo = fileURL
 	user.Photo = user.Storage + `/` + fileName
 
 	err = utils.SendPersonalMessageToClient(user.Session, "Activated")
