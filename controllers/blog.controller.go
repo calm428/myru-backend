@@ -145,7 +145,7 @@ func AddFav(c *fiber.Ctx) error {
     var req AddFavoriteRequest
 
     // Парсим тело запроса
-    if err := c.BodyParser(req); err != nil {
+    if err := c.BodyParser(&req); err != nil {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
             "error": "Cannot parse JSON",
         })
