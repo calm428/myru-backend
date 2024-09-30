@@ -1906,10 +1906,12 @@ func GetAll(c *fiber.Ctx) error {
         // Проверяем, добавлен ли блог в избранное для авторизованного пользователя
         if authorized && currentUserID != uuid.Nil {
             var favorite models.Favorite
-            err := initializers.DB.Where("user_id = ? AND blog_id = ?", currentUserID, b.ID).First(&favorite).Error
-            if err == nil {
-                isFavorite = true
-            }
+			err := initializers.DB.Table("favorites"). // Явно указываем имя таблицы
+			Where("user_id = ? AND blog_id = ?", currentUserID, b.ID).
+			First(&favorite).Error
+			if err == nil {
+				isFavorite = true
+			}
         }
 
         hashtags := make([]string, len(b.Hashtags))
