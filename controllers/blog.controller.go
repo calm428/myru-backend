@@ -217,9 +217,9 @@ func GetFavorites(c *fiber.Ctx) error {
 }
 
 type DelFavRequest struct {
-	BlogID uint64 `json:"blog_id"`
+	UniqId     string `json:"UniqId"`
+	ActionType string `json:"actionType"`
 }
-
 
 func DelFav(c *fiber.Ctx) error {
     req := new(DelFavRequest)
@@ -231,19 +231,27 @@ func DelFav(c *fiber.Ctx) error {
         })
     }
 
-    // Проверяем валидность ID блога
-    if req.BlogID == 0 {
+    // Проверяем валидность UniqId
+    if req.UniqId == "" {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Invalid blog ID",
+            "error": "Invalid UniqId",
+        })
+    }
+
+    // Находим запись блога по UniqId
+    var blog models.Blog
+    if err := initializers.DB.Where("uniq_id = ?", req.UniqId).First(&blog).Error; err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+            "error": "Blog not found",
         })
     }
 
     // Извлекаем информацию о пользователе из контекста
     user := c.Locals("user").(models.UserResponse)
 
-    // Ищем запись в избранном для данного пользователя и блога
+    // Ищем запись в избранном для данного пользователя и блога по реальному blog_id
     var favorite models.Favorite
-    if err := initializers.DB.First(&favorite, "blog_id = ? AND user_id = ?", req.BlogID, user.ID).Error; err != nil {
+    if err := initializers.DB.First(&favorite, "blog_id = ? AND user_id = ?", blog.ID, user.ID).Error; err != nil {
         return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
             "error": "Favorite not found",
         })
