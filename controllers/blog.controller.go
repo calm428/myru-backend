@@ -175,7 +175,7 @@ func AddFav(c *fiber.Ctx) error {
 
     // Проверяем, добавлен ли блог уже в избранное
     var existingFavorite models.Favorite
-    if err := initializers.DB.Where("user_id = ? AND blog_id = ?", user.ID, favorite.BlogID).First(&existingFavorite).Error; err == nil {
+    if err := initializers.DB.Where("user_id = ? AND uniq_id = ?", user.ID, favorite.BlogID).First(&existingFavorite).Error; err == nil {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
             "error": "Favorite already exists",
         })
