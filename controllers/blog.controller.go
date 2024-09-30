@@ -134,18 +134,36 @@ type blogResponse struct {
 	IsFavorite 		 bool                  `json:"isfavorite"`
 }
 
+
+type AddFavoriteRequest struct {
+	BlogID     uint64 `json:"BlogID"`
+	ActionType string `json:"actionType"`
+}
+
+
 func AddFav(c *fiber.Ctx) error {
-    favorite := new(models.Favorite)
+    var req AddFavoriteRequest
 
     // Парсим тело запроса
-    if err := c.BodyParser(favorite); err != nil {
+    if err := c.BodyParser(req); err != nil {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
             "error": "Cannot parse JSON",
         })
     }
 
-    // Извлекаем информацию о пользователе из контекста
-    userInterface := c.Locals("user")
+
+    // Проверьте, что BlogID не пуст
+    if req.BlogID == 0 {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "BlogID is required",
+        })
+    }
+
+	favorite := models.Favorite{
+        BlogID: req.BlogID, // Установите BlogID
+    }
+
+	userInterface := c.Locals("user")
     user, ok := userInterface.(models.UserResponse)
     if !ok {
         return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -153,13 +171,7 @@ func AddFav(c *fiber.Ctx) error {
         })
     }
 
-    // Проверяем наличие блога
-    var blog models.Blog
-    if err := initializers.DB.First(&blog, "id = ?", favorite.BlogID).Error; err != nil {
-        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-            "error": "Blog not found",
-        })
-    }
+    favorite.UserID = user.ID
 
     // Проверяем, добавлен ли блог уже в избранное
     var existingFavorite models.Favorite
@@ -170,7 +182,6 @@ func AddFav(c *fiber.Ctx) error {
     }
 
     // Устанавливаем ID пользователя и создаем запись в избранное
-    favorite.UserID = user.ID
     if result := initializers.DB.Create(&favorite); result.Error != nil {
         return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
             "error": "Could not create favorite",
@@ -1874,11 +1885,7 @@ func GetAll(c *fiber.Ctx) error {
     }
 
 	// Проверка добавления в избранное (isFavorite) только если авторизован и токен действителен
-	type BlogWithFavoriteStatus struct {
-		Blog       models.Blog `json:"blog"`
-		IsFavorite bool        `json:"isFavorite"`
-	}
-	
+
     var res []*blogResponse
     for _, b := range blogs {
         isFavorite := false
