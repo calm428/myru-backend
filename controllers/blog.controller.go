@@ -131,6 +131,7 @@ type blogResponse struct {
 	Sticker          string                `json:"sticker"`
 	Hashtags         []string              `json:"hashtags"`
 	UserProfile      UserProfileJSON       `json:"userProfile"`
+	IsFavorite 		 bool                  `json:"isfavorite"`
 }
 
 func AddFav(c *fiber.Ctx) error {
@@ -1700,7 +1701,7 @@ func GetAll(c *fiber.Ctx) error {
         Preload("User").
         Where("status = ?", "ACTIVE")
 
-    // Get the query parameters
+    // Получаем параметры запроса
     city := c.Query("city")
     skip := c.Query("skip")
     money := c.Query("money")
@@ -1725,7 +1726,7 @@ func GetAll(c *fiber.Ctx) error {
     if city != "" && city != "all" {
         cityNames := strings.Split(city, ",")
         for i := range cityNames {
-            cityNames[i] = strings.TrimSpace(cityNames[i]) // Удалить лишние пробелы
+            cityNames[i] = strings.TrimSpace(cityNames[i])
         }
 
         var cityTranslations []models.CityTranslation
@@ -1749,7 +1750,7 @@ func GetAll(c *fiber.Ctx) error {
     if category != "" && category != "all" {
         categoryNames := strings.Split(category, ",")
         for i := range categoryNames {
-            categoryNames[i] = strings.TrimSpace(categoryNames[i]) // Удалить лишние пробелы
+            categoryNames[i] = strings.TrimSpace(categoryNames[i])
         }
 
         var guildTranslations []models.GuildTranslation
@@ -1832,6 +1833,24 @@ func GetAll(c *fiber.Ctx) error {
         })
     }
 
+	// Извлечение access_token и получение текущего пользователя
+	authorization := c.Get("Authorization")
+
+	var currentUserID uuid.UUID
+	authorized := false
+	if authorization != "" && authorization != "undefined" {
+		config, _ := initializers.LoadConfig(".")
+		tokenClaims, err := utils.ValidateToken(authorization, config.AccessTokenPublicKey)
+
+		// Если токен не просрочен, продолжаем
+		if err == nil {
+			currentUserID, err = uuid.FromString(tokenClaims.UserID)
+			if err == nil {
+				authorized = true
+			}
+		}
+	}
+
     query = query.Limit(limitInt)
 
     err = query.Find(&blogs).Error
@@ -1842,8 +1861,25 @@ func GetAll(c *fiber.Ctx) error {
         })
     }
 
+	// Проверка добавления в избранное (isFavorite) только если авторизован и токен действителен
+	type BlogWithFavoriteStatus struct {
+		Blog       models.Blog `json:"blog"`
+		IsFavorite bool        `json:"isFavorite"`
+	}
+	
     var res []*blogResponse
     for _, b := range blogs {
+        isFavorite := false
+
+        // Проверяем, добавлен ли блог в избранное для авторизованного пользователя
+        if authorized && currentUserID != uuid.Nil {
+            var favorite models.Favorite
+            err := initializers.DB.Where("user_id = ? AND blog_id = ?", currentUserID, b.ID).First(&favorite).Error
+            if err == nil {
+                isFavorite = true
+            }
+        }
+
         hashtags := make([]string, len(b.Hashtags))
         for i, tag := range b.Hashtags {
             hashtags[i] = tag.Hashtag
@@ -1914,7 +1950,8 @@ func GetAll(c *fiber.Ctx) error {
                 TelegramActivated: b.User.TelegramActivated,
                 IsBot:             b.User.IsBot,
             },
-            Hashtags: hashtags,
+            Hashtags:  hashtags,
+            IsFavorite: isFavorite,  // добавляем это поле в ответ
         }
         res = append(res, blogRes)
     }
