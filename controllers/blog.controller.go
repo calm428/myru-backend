@@ -136,7 +136,7 @@ type blogResponse struct {
 
 
 type AddFavoriteRequest struct {
-	BlogID     uint64 `json:"BlogID"`
+	UniqId     string `json:"UniqId"`
 	ActionType string `json:"actionType"`
 }
 
@@ -151,43 +151,56 @@ func AddFav(c *fiber.Ctx) error {
         })
     }
 
+	// Проверка, что UniqId не пустой
+	if req.UniqId == "" {
+	return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		"error": "UniqId is required",
+	})
+}
 
-    // Проверьте, что BlogID не пуст
-    if req.BlogID == 0 {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "BlogID is required",
-        })
-    }
 
-	favorite := models.Favorite{
-        BlogID: req.BlogID, // Установите BlogID
-    }
+   // Находим запись блога по UniqId
+   var blog models.Blog
+   if err := initializers.DB.Where("uniq_id = ?", req.UniqId).First(&blog).Error; err != nil {
+	   return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+		   "error": "Blog not found",
+	   })
+   }
 
+   // Извлекаем реальный ID блога
+   blogID := blog.ID
+
+   
+   favorite := models.Favorite{
+	BlogID: blogID, // Устанавливаем реальный ID блога
+   }
+
+	// Получаем информацию о пользователе
 	userInterface := c.Locals("user")
-    user, ok := userInterface.(models.UserResponse)
-    if !ok {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": "User information is missing or invalid",
-        })
-    }
+	user, ok := userInterface.(models.UserResponse)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "User information is missing or invalid",
+		})
+	}
+   
+	favorite.UserID = user.ID
 
-    favorite.UserID = user.ID
+	// Проверяем, не добавлен ли блог уже в избранное
+	var existingFavorite models.Favorite
+	if err := initializers.DB.Where("user_id = ? AND blog_id = ?", user.ID, favorite.BlogID).First(&existingFavorite).Error; err == nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Favorite already exists",
+		})
+	}
 
-    // Проверяем, добавлен ли блог уже в избранное
-    var existingFavorite models.Favorite
-    if err := initializers.DB.Where("user_id = ? AND uniq_id = ?", user.ID, favorite.BlogID).First(&existingFavorite).Error; err == nil {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Favorite already exists",
-        })
-    }
-
-    // Устанавливаем ID пользователя и создаем запись в избранное
-    if result := initializers.DB.Create(&favorite); result.Error != nil {
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-            "error": "Could not create favorite",
-        })
-    }
-
+	// Создаем запись в избранном
+	if result := initializers.DB.Create(&favorite); result.Error != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Could not create favorite",
+		})
+	}
+	
     // Успешное добавление
     return c.Status(fiber.StatusOK).JSON(favorite)
 }
