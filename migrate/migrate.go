@@ -140,6 +140,9 @@ func main() {
 	if err := initializers.DB.AutoMigrate(&models.Order{}); err != nil {
 		panic(err)
 	}
+	if err := initializers.DB.AutoMigrate(&models.OrderItem{}); err != nil {
+		panic(err)
+	}
 	if err := initializers.DB.AutoMigrate(&models.PostTag{}); err != nil {
 		panic(err)
 	}

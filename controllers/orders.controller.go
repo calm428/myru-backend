@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
@@ -12,7 +13,7 @@ import (
 
 func GetOrdersForSeller(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.UserResponse)
-
+	
 	// Проверяем, является ли пользователь продавцом
 	if !user.Seller {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
@@ -70,6 +71,9 @@ func CreateOrder(c *fiber.Ctx) error {
 			"message": "Ошибка обработки данных",
 		})
 	}
+
+	fmt.Println(orderReq)
+
 
 	// Получаем ID продавца по его имени (seller)
 	var seller models.User
