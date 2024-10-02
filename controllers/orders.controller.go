@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
@@ -48,7 +49,7 @@ func CreateOrder(c *fiber.Ctx) error {
 		Price    float64 `json:"price"`
 		Quantity int     `json:"quantity"`
 		Image    string  `json:"image"`
-		SellerID uuid.UUID `json:"seller"`
+		Seller   string  `json:"seller"` // Имя продавца
 	}
 
 	type CustomerDetails struct {
@@ -71,15 +72,27 @@ func CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
-	// Группируем товары по продавцу
+	// Карта для группировки товаров по продавцу
 	ordersBySeller := make(map[uuid.UUID][]OrderItemRequest)
+
+	// Проходим по каждому товару и находим ID продавца
 	for _, item := range orderReq.CartItems {
-		ordersBySeller[item.SellerID] = append(ordersBySeller[item.SellerID], item)
+		// Ищем пользователя по имени продавца
+		var sellerUser models.User
+		if err := initializers.DB.Where("name = ?", item.Seller).First(&sellerUser).Error; err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"status":  "error",
+				"message": fmt.Sprintf("Продавец с именем %s не найден", item.Seller),
+			})
+		}
+
+		// Добавляем товар в список для соответствующего продавца
+		ordersBySeller[sellerUser.ID] = append(ordersBySeller[sellerUser.ID], item)
 	}
 
 	var createdOrders []models.Order
 
-	// Проходим по каждому продавцу и создаем заказ для его товаров
+	// Проходим по каждому продавцу и создаем заказы
 	for sellerID, items := range ordersBySeller {
 		var totalAmount float64
 		for _, item := range items {
@@ -122,11 +135,10 @@ func CreateOrder(c *fiber.Ctx) error {
 
 		// Добавляем заказ в список созданных заказов
 		createdOrders = append(createdOrders, order)
-		SendNotificationToOwner(user.ID.String(), "У вас новая продажа", "На сумму " + strconv.FormatFloat(totalAmount, 'f', 2, 64), "https://www.myru.online/profile/posts?tabs=sales")
 
+		// Отправляем уведомление продавцу
+		SendNotificationToOwner(sellerID.String(), "У вас новая продажа", "На сумму "+strconv.FormatFloat(totalAmount, 'f', 2, 64), "https://www.myru.online/profile/posts?tabs=sales")
 	}
-
-
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"status":  "success",
