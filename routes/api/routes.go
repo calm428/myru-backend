@@ -17,7 +17,7 @@ import (
 func Register(micro *fiber.App) {
 
 	micro.Route("/orders", func(router fiber.Router) {
-		router.Get("/newOrder", middleware.DeserializeUser, controllers.CreateOrder)
+		router.Post("/newOrder", middleware.DeserializeUser, controllers.CreateOrder)
 		router.Get("/getOrders",  middleware.DeserializeUser, controllers.GetOrdersForSeller)
 	})
 
