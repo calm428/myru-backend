@@ -1550,6 +1550,7 @@ func GetBlogById(c *fiber.Ctx) error {
 			MultilangTitle:   b.MultilangTitle,
 			MultilangDescr:   b.MultilangDescr,
 			MultilangContent: b.MultilangContent,
+            UniqId:         b.UniqId,
 
 			Descr:      b.Descr,
 			Lang:       b.Lang,
