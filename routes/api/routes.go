@@ -16,6 +16,11 @@ import (
 
 func Register(micro *fiber.App) {
 
+	micro.Route("/orders", func(router fiber.Router) {
+		router.Get("/newOrder", middleware.DeserializeUser, controllers.GetUserAndFollowingsPosts)
+		router.Get("/getOrders",  middleware.DeserializeUser, controllers.GetUserAndFollowingsPosts)
+	})
+
 	micro.Route("/post", func(router fiber.Router) {
 		router.Get("/get/:id", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetPostByID)
 		router.Get("/feed", middleware.DeserializeUser, middleware.CheckRole([]string{"admin", "user", "vip"}), controllers.GetUserAndFollowingsPosts)
