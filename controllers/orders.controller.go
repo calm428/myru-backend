@@ -24,14 +24,15 @@ func GetOrdersForSeller(c *fiber.Ctx) error {
 
 	var orders []models.Order
 
-	// Получаем заказы для продавца
-	err := utils.Paginate(c, initializers.DB.Where("seller_id = ?", user.ID).Order("created_at DESC"), &orders)
+	// Получаем заказы вместе с товарами для продавца
+	err := utils.Paginate(c, initializers.DB.Preload("OrderItems").Where("seller_id = ?", user.ID).Order("created_at DESC"), &orders)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Заказы не найдены",
 		})
 	}
+
 
 	return c.JSON(fiber.Map{
 		"status": "success",
@@ -134,3 +135,96 @@ func CreateOrder(c *fiber.Ctx) error {
 	})
 }
 
+func AddDeliveryAddress(c *fiber.Ctx) error {
+	user := c.Locals("user").(models.UserResponse)
+
+	var newAddress models.DeliveryAddress
+	if err := c.BodyParser(&newAddress); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Неверные данные",
+		})
+	}
+
+	// Указываем ID пользователя
+	newAddress.UserID = user.ID
+
+	// Сохраняем адрес в базу данных
+	if err := initializers.DB.Create(&newAddress).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка при сохранении адреса",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Адрес доставки добавлен",
+		"data":    newAddress,
+	})
+}
+
+func UpdateDeliveryAddress(c *fiber.Ctx) error {
+	user := c.Locals("user").(models.UserResponse)
+	addressID := c.Params("id") // Получаем ID адреса из параметров URL
+
+	var address models.DeliveryAddress
+
+	// Проверяем, существует ли адрес и принадлежит ли он текущему пользователю
+	if err := initializers.DB.Where("id = ? AND user_id = ?", addressID, user.ID).First(&address).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Адрес не найден или доступ запрещен",
+		})
+	}
+
+	// Обновляем адрес с новыми данными
+	if err := c.BodyParser(&address); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Неверные данные",
+		})
+	}
+
+	// Сохраняем обновления
+	if err := initializers.DB.Save(&address).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка при обновлении адреса",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Адрес успешно обновлен",
+		"data":    address,
+	})
+}
+
+func DeleteDeliveryAddress(c *fiber.Ctx) error {
+	user := c.Locals("user").(models.UserResponse)
+	addressID := c.Params("id") // Получаем ID адреса из параметров URL
+
+	var address models.DeliveryAddress
+
+	// Проверяем, существует ли адрес и принадлежит ли он текущему пользователю
+	if err := initializers.DB.Where("id = ? AND user_id = ?", addressID, user.ID).First(&address).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Адрес не найден или доступ запрещен",
+		})
+	}
+
+	// Удаляем адрес
+	if err := initializers.DB.Delete(&address).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка при удалении адреса",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Адрес успешно удален",
+	})
+}

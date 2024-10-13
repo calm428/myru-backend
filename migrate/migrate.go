@@ -146,6 +146,9 @@ func main() {
 	if err := initializers.DB.AutoMigrate(&models.PostTag{}); err != nil {
 		panic(err)
 	}
+	if err := initializers.DB.AutoMigrate(&models.DeliveryAddress{}); err != nil {
+		panic(err)
+	}
 
 
 	// Check if there are any users in the database
