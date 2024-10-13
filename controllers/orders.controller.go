@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
@@ -24,15 +23,18 @@ func GetOrdersForSeller(c *fiber.Ctx) error {
 
 	var orders []models.Order
 
-	// Получаем заказы вместе с товарами для продавца
-	err := utils.Paginate(c, initializers.DB.Preload("OrderItems").Where("seller_id = ?", user.ID).Order("created_at DESC"), &orders)
+	// Получаем заказы вместе с товарами и адресами доставки для продавца
+	err := utils.Paginate(c, initializers.DB.
+		Preload("OrderItems").        // Загружаем товары в заказе
+		Preload("DeliveryAddress").   // Загружаем адрес доставки
+		Where("seller_id = ?", user.ID).
+		Order("created_at DESC"), &orders)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Заказы не найдены",
 		})
 	}
-
 
 	return c.JSON(fiber.Map{
 		"status": "success",
@@ -53,16 +55,9 @@ func CreateOrder(c *fiber.Ctx) error {
 		Seller   string  `json:"seller"`  // Продавец передается как строка (имя пользователя)
 	}
 
-	type CustomerDetails struct {
-		Name    string `json:"name" validate:"required"`
-		Email   string `json:"email" validate:"required"`
-		Address string `json:"address" validate:"required"`
-		Phone   string `json:"phone" validate:"required"`
-	}
-
 	type OrderRequest struct {
-		CartItems      []OrderItemRequest `json:"cartItems" validate:"required"`
-		CustomerDetails CustomerDetails   `json:"customerDetails" validate:"required"`
+		CartItems        []OrderItemRequest `json:"cartItems" validate:"required"`
+		DeliveryAddressID uuid.UUID          `json:"deliveryAddressId" validate:"required"` // ID адреса доставки
 	}
 
 	var orderReq OrderRequest
@@ -73,12 +68,19 @@ func CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
-	fmt.Println(orderReq)
+	// Проверяем, существует ли переданный ID адреса доставки
+	var deliveryAddress models.DeliveryAddress
+	if err := initializers.DB.Where("id = ? AND user_id = ?", orderReq.DeliveryAddressID, user.ID).First(&deliveryAddress).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Адрес доставки не найден или не принадлежит пользователю",
+		})
+	}
 
-
-	// Получаем ID продавца по его имени (seller)
-	var seller models.User
+	// Создание заказа для каждого товара в корзине
 	for _, item := range orderReq.CartItems {
+		// Получаем ID продавца по его имени
+		var seller models.User
 		err := initializers.DB.Where("name = ?", item.Seller).First(&seller).Error
 		if err != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -87,13 +89,14 @@ func CreateOrder(c *fiber.Ctx) error {
 			})
 		}
 
-		// Создаем новый заказ для текущего продавца
+		// Создаем новый заказ
 		order := models.Order{
-			ID:          uuid.NewV4(),
-			UserID:      user.ID,
-			SellerID:    seller.ID, // Используем ID продавца из базы данных
-			TotalAmount: item.Price * float64(item.Quantity),
-			Status:      "pending",
+			ID:              uuid.NewV4(),
+			UserID:          user.ID,
+			SellerID:        seller.ID,
+			TotalAmount:     item.Price * float64(item.Quantity),
+			Status:          "pending",
+			DeliveryAddressID: orderReq.DeliveryAddressID, // Привязываем адрес доставки
 		}
 
 		// Сохраняем заказ в базе данных
@@ -104,7 +107,7 @@ func CreateOrder(c *fiber.Ctx) error {
 			})
 		}
 
-		// Добавляем товары к заказу
+		// Добавляем товары в заказ
 		orderItem := models.OrderItem{
 			ID:       uuid.NewV4(),
 			OrderID:  order.ID,
@@ -113,7 +116,7 @@ func CreateOrder(c *fiber.Ctx) error {
 			Quantity: item.Quantity,
 		}
 
-		// Сохраняем товар в базе данных
+		// Сохраняем товары в базе данных
 		if err := initializers.DB.Create(&orderItem).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"status":  "error",
@@ -121,10 +124,11 @@ func CreateOrder(c *fiber.Ctx) error {
 			})
 		}
 
+		// Уведомляем продавца о новом заказе
 		SendNotificationToOwner(
-			seller.ID.String(), 
-			"У вас новая продажа", 
-			"На сумму " + strconv.FormatFloat(item.Price * float64(item.Quantity), 'f', 2, 64) + " руб.", 
+			seller.ID.String(),
+			"У вас новая продажа",
+			"На сумму " + strconv.FormatFloat(item.Price*float64(item.Quantity), 'f', 2, 64) + " руб.",
 			"https://www.myru.online/profile/posts?tabs=sales",
 		)
 	}
@@ -134,6 +138,7 @@ func CreateOrder(c *fiber.Ctx) error {
 		"message": "Заказы успешно созданы",
 	})
 }
+
 
 func AddDeliveryAddress(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.UserResponse)
