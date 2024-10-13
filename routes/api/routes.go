@@ -21,9 +21,9 @@ func Register(micro *fiber.App) {
 		router.Get("/getOrders",  middleware.DeserializeUser, controllers.GetOrdersForSeller)
 		
 		router.Post("/addAddr",  middleware.DeserializeUser, controllers.AddDeliveryAddress)
-		router.Delete("/delAddr",  middleware.DeserializeUser, controllers.DeleteDeliveryAddress)
-		router.Put("/editAddr",  middleware.DeserializeUser, controllers.UpdateDeliveryAddress)
-		router.Get("/getAddresses", middleware.DeserializeUser, controllers.GetDeliveryAddresses)    // Получение списка адресов доставки
+		router.Delete("/delAddr/:id", middleware.DeserializeUser, controllers.DeleteDeliveryAddress)  // Удаление адреса доставки
+		router.Put("/editAddr/:id", middleware.DeserializeUser, controllers.UpdateDeliveryAddress)    // Обновление адреса доставки
+        router.Get("/getAddresses", middleware.DeserializeUser, controllers.GetDeliveryAddresses)    // Получение списка адресов доставки
 
 	})
 

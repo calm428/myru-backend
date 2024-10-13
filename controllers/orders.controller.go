@@ -149,6 +149,9 @@ func AddDeliveryAddress(c *fiber.Ctx) error {
 	// Указываем ID пользователя
 	newAddress.UserID = user.ID
 
+	// Генерируем UUID для нового адреса
+	newAddress.ID = uuid.NewV4()
+
 	// Сохраняем адрес в базу данных
 	if err := initializers.DB.Create(&newAddress).Error; err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -226,5 +229,25 @@ func DeleteDeliveryAddress(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"status":  "success",
 		"message": "Адрес успешно удален",
+	})
+}
+
+func GetDeliveryAddresses(c *fiber.Ctx) error {
+	user := c.Locals("user").(models.UserResponse)
+
+	var addresses []models.DeliveryAddress
+
+	// Получаем список адресов доставки для пользователя
+	if err := initializers.DB.Where("user_id = ?", user.ID).Find(&addresses).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка при получении адресов",
+		})
+	}
+
+	// Возвращаем список адресов, даже если он пустой
+	return c.JSON(fiber.Map{
+		"status": "success",
+		"data":   addresses, // Если адресов нет, возвращаем пустой массив
 	})
 }
