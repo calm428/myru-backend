@@ -265,3 +265,76 @@ func GetDeliveryAddresses(c *fiber.Ctx) error {
 		"data":   addresses, // Если адресов нет, возвращаем пустой массив
 	})
 }
+
+func UpdateOrderStatus(c *fiber.Ctx) error {
+	// Получаем ID заказа из параметров маршрута
+	orderID := c.Params("id")
+
+	// Получаем авторизованного пользователя
+	user := c.Locals("user").(models.UserResponse)
+
+	// Структура для данных запроса
+	type UpdateStatusRequest struct {
+		Status string `json:"status" validate:"required"` // Статус, который будет обновлен
+	}
+
+	var req UpdateStatusRequest
+
+	// Парсим тело запроса
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка обработки данных",
+		})
+	}
+
+	// Проверяем, является ли переданный статус корректным
+	validStatuses := []string{"pending", "completed", "canceled"}
+	isValidStatus := false
+	for _, status := range validStatuses {
+		if req.Status == status {
+			isValidStatus = true
+			break
+		}
+	}
+
+	if !isValidStatus {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Некорректный статус",
+		})
+	}
+
+	// Ищем заказ по ID
+	var order models.Order
+	if err := initializers.DB.Where("id = ?", orderID).First(&order).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Заказ не найден",
+		})
+	}
+
+	// Проверяем, является ли текущий пользователь продавцом этого заказа
+	if order.SellerID != user.ID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Вы не имеете прав для изменения статуса этого заказа",
+		})
+	}
+
+	// Обновляем статус заказа
+	order.Status = req.Status
+	if err := initializers.DB.Save(&order).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Ошибка при обновлении статуса",
+		})
+	}
+
+	// Возвращаем успешный ответ
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Статус заказа обновлен",
+		"data":    order,
+	})
+}

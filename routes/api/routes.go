@@ -24,6 +24,7 @@ func Register(micro *fiber.App) {
 		router.Delete("/delAddr/:id", middleware.DeserializeUser, controllers.DeleteDeliveryAddress) 
 		router.Put("/editAddr/:id", middleware.DeserializeUser, controllers.UpdateDeliveryAddress)  
         router.Get("/getAddresses", middleware.DeserializeUser, controllers.GetDeliveryAddresses)    
+		router.Patch("/:id/status", middleware.DeserializeUser, controllers.UpdateOrderStatus)
 
 	})
 
