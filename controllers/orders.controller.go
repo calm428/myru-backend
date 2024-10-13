@@ -43,6 +43,38 @@ func GetOrdersForSeller(c *fiber.Ctx) error {
 	})
 }
 
+func GetOrdersForBuyer(c *fiber.Ctx) error {
+	user := c.Locals("user").(models.UserResponse)
+
+	// Проверяем, является ли пользователь покупателем
+	if user.Seller {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Вы являетесь продавцом, доступ запрещен",
+		})
+	}
+
+	var orders []models.Order
+
+	// Получаем заказы вместе с товарами и адресами доставки для покупателя
+	err := utils.Paginate(c, initializers.DB.
+		Preload("OrderItems").        // Загружаем товары в заказе
+		Preload("DeliveryAddress").   // Загружаем адрес доставки
+		Where("user_id = ?", user.ID).  // Фильтруем заказы по покупателю
+		Order("created_at DESC"), &orders)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Заказы не найдены",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status": "success",
+		"data":   orders,
+	})
+}
+
 func CreateOrder(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.UserResponse)
 

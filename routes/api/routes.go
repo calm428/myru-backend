@@ -19,7 +19,8 @@ func Register(micro *fiber.App) {
 	micro.Route("/orders", func(router fiber.Router) {
 		router.Post("/newOrder", middleware.DeserializeUser, controllers.CreateOrder)
 		router.Get("/getOrders",  middleware.DeserializeUser, controllers.GetOrdersForSeller)
-		
+		router.Get("/getOrdersBuyers",  middleware.DeserializeUser, controllers.GetOrdersForBuyer)
+				
 		router.Post("/addAddr",  middleware.DeserializeUser, controllers.AddDeliveryAddress)
 		router.Delete("/delAddr/:id", middleware.DeserializeUser, controllers.DeleteDeliveryAddress) 
 		router.Put("/editAddr/:id", middleware.DeserializeUser, controllers.UpdateDeliveryAddress)  
