@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"hyperpage/initializers"
 	"hyperpage/models"
 	"hyperpage/utils"
@@ -56,8 +57,12 @@ func CreateOrder(c *fiber.Ctx) error {
 	}
 
 	type OrderRequest struct {
-		CartItems        []OrderItemRequest `json:"cartItems" validate:"required"`
-		DeliveryAddressID uuid.UUID          `json:"deliveryAddressId" validate:"required"` // ID адреса доставки
+		CartItems      []OrderItemRequest `json:"cartItems" validate:"required"`
+		CustomerDetails struct {
+			AddressId string `json:"addressId" validate:"required"`
+		} `json:"customerDetails" validate:"required"`
+		ShippingMethod string `json:"shippingMethod" validate:"required"`
+		PaymentMethod  string `json:"paymentMethod" validate:"required"`
 	}
 
 	var orderReq OrderRequest
@@ -68,18 +73,20 @@ func CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
-	// Проверяем, существует ли переданный ID адреса доставки
+	// Получаем данные адреса доставки по ID
 	var deliveryAddress models.DeliveryAddress
-	if err := initializers.DB.Where("id = ? AND user_id = ?", orderReq.DeliveryAddressID, user.ID).First(&deliveryAddress).Error; err != nil {
+	if err := initializers.DB.Where("id = ?", orderReq.CustomerDetails.AddressId).First(&deliveryAddress).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"status":  "error",
-			"message": "Адрес доставки не найден или не принадлежит пользователю",
+			"message": "Адрес доставки не найден",
 		})
 	}
 
-	// Создание заказа для каждого товара в корзине
+	fmt.Println(orderReq)
+
+	// Перебираем товары в заказе
 	for _, item := range orderReq.CartItems {
-		// Получаем ID продавца по его имени
+		// Получаем ID продавца по его имени (seller)
 		var seller models.User
 		err := initializers.DB.Where("name = ?", item.Seller).First(&seller).Error
 		if err != nil {
@@ -89,14 +96,15 @@ func CreateOrder(c *fiber.Ctx) error {
 			})
 		}
 
-		// Создаем новый заказ
+		// Создаем новый заказ для текущего продавца
 		order := models.Order{
-			ID:              uuid.NewV4(),
-			UserID:          user.ID,
-			SellerID:        seller.ID,
-			TotalAmount:     item.Price * float64(item.Quantity),
-			Status:          "pending",
-			DeliveryAddressID: orderReq.DeliveryAddressID, // Привязываем адрес доставки
+			ID:          uuid.NewV4(),
+			UserID:      user.ID,
+			SellerID:    seller.ID, // Используем ID продавца из базы данных
+			TotalAmount: item.Price * float64(item.Quantity),
+			Status:      "pending",
+			// Добавляем адрес доставки
+			DeliveryAddress: deliveryAddress, 
 		}
 
 		// Сохраняем заказ в базе данных
@@ -107,7 +115,7 @@ func CreateOrder(c *fiber.Ctx) error {
 			})
 		}
 
-		// Добавляем товары в заказ
+		// Добавляем товары к заказу
 		orderItem := models.OrderItem{
 			ID:       uuid.NewV4(),
 			OrderID:  order.ID,
@@ -116,7 +124,7 @@ func CreateOrder(c *fiber.Ctx) error {
 			Quantity: item.Quantity,
 		}
 
-		// Сохраняем товары в базе данных
+		// Сохраняем товар в базе данных
 		if err := initializers.DB.Create(&orderItem).Error; err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"status":  "error",
@@ -124,11 +132,11 @@ func CreateOrder(c *fiber.Ctx) error {
 			})
 		}
 
-		// Уведомляем продавца о новом заказе
+		// Отправляем уведомление продавцу
 		SendNotificationToOwner(
-			seller.ID.String(),
-			"У вас новая продажа",
-			"На сумму " + strconv.FormatFloat(item.Price*float64(item.Quantity), 'f', 2, 64) + " руб.",
+			seller.ID.String(), 
+			"У вас новая продажа", 
+			"На сумму " + strconv.FormatFloat(item.Price * float64(item.Quantity), 'f', 2, 64) + " руб.", 
 			"https://www.myru.online/profile/posts?tabs=sales",
 		)
 	}
@@ -138,6 +146,7 @@ func CreateOrder(c *fiber.Ctx) error {
 		"message": "Заказы успешно созданы",
 	})
 }
+
 
 
 func AddDeliveryAddress(c *fiber.Ctx) error {

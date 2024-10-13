@@ -17,6 +17,8 @@ type Order struct {
 	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`            // Время обновления
 	OrderItems  []OrderItem `gorm:"foreignKey:OrderID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE"` // Товары в заказе
 	DeliveryAddressID uuid.UUID `gorm:"type:uuid;not null"`        // Ссылка на адрес доставки
+	DeliveryAddress  DeliveryAddress `gorm:"foreignKey:DeliveryAddressID"`    // Связь с моделью адреса доставки
+
 }
 
 // Модель для товаров в заказе
