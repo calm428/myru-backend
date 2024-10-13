@@ -47,12 +47,12 @@ func GetOrdersForBuyer(c *fiber.Ctx) error {
 	user := c.Locals("user").(models.UserResponse)
 
 	// Проверяем, является ли пользователь покупателем
-	if user.Seller {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Вы являетесь продавцом, доступ запрещен",
-		})
-	}
+	// if user.Seller {
+	// 	return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+	// 		"status":  "error",
+	// 		"message": "Вы являетесь продавцом, доступ запрещен",
+	// 	})
+	// }
 
 	var orders []models.Order
 
